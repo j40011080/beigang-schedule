@@ -117,10 +117,6 @@
     width:100%; border:none; background:transparent; font-size:12px; padding:3px 2px; outline:none;
   }
   td.notecell input.notetext:focus{background:#FFF7E0;}
-  .supportrow{display:flex; align-items:center; gap:4px; margin-top:2px;}
-  .supportrow label{font-size:10px; color:#a35; white-space:nowrap;}
-  .supportrow input{width:36px; padding:2px 3px; font-size:11px; border:1px solid var(--line); border-radius:4px;}
-  td.notecell.hassupport{background:#FDEFEA;}
 
   /* modal */
   .overlay{position:fixed; inset:0; background:rgba(20,24,30,.55); display:none; align-items:center; justify-content:center; z-index:100; padding:16px;}
@@ -172,9 +168,20 @@
       <label>目前操作人</label>
       <input id="currentUserInput" placeholder="請輸入姓名">
     </div>
+    <button class="iconbtn" id="logBtn" title="新增/刪除/修改紀錄">🕐</button>
     <button class="iconbtn" id="settingsBtn" title="設定">⚙</button>
   </div>
 </header>
+
+<!-- Change log modal -->
+<div class="overlay" id="logOverlay">
+  <div class="modal" style="max-width:640px;">
+    <button class="closebtn" onclick="closeLog()">×</button>
+    <h2>新增/刪除/修改紀錄</h2>
+    <div class="modalsub">最新異動在最上面，紀錄會隨排休表一起同步到雲端（所有裝置共用），最多保留300筆，超過會自動刪除最舊的一筆以節省空間</div>
+    <div id="logList" style="max-height:60vh; overflow-y:auto;"></div>
+  </div>
+</div>
 
 <div class="toolbar">
   <div class="grp">
@@ -307,17 +314,46 @@ scheduleRef.on('value', (snapshot)=>{
   state = Object.assign({}, state, remote);
   if(!state.cells) state.cells = {};
   if(!state.notes) state.notes = {};
-  if(!state.seqCounters) state.seqCounters = {};
   if(!Array.isArray(state.employees)) state.employees = [];
+  if(!Array.isArray(state.changeLog)) state.changeLog = [];
   hasLoadedOnce = true;
   render();
   document.getElementById('vStartInput').value = state.vStart;
+  if(document.getElementById('logOverlay').classList.contains('show')) renderLogList();
   isApplyingRemote = false;
   setSyncStatus('已同步', '#4C7A54');
 }, (err)=>{
   console.error(err);
   setSyncStatus('連線失敗', '#C1392B');
 });
+
+/* ---------------- 異動紀錄（併入 state，隨 Firebase 同步；上限300筆，超過自動淘汰最舊的一筆） ---------------- */
+const LOG_MAX = 300;
+
+function addLog(text){
+  const user = (state.currentUser && state.currentUser.trim()) || '(未指定)';
+  if(!Array.isArray(state.changeLog)) state.changeLog = [];
+  state.changeLog.unshift({ ts: Date.now(), user, text });
+  if(state.changeLog.length > LOG_MAX) state.changeLog.length = LOG_MAX; // 只留最新300筆
+  if(document.getElementById('logOverlay').classList.contains('show')) renderLogList();
+  scheduleSave();
+}
+function renderLogList(){
+  const box = document.getElementById('logList');
+  const log = Array.isArray(state.changeLog) ? state.changeLog : [];
+  if(log.length===0){ box.innerHTML = '<div style="padding:20px 0;color:#999;font-size:13px;">尚無紀錄</div>'; return; }
+  box.innerHTML = log.map(entry=>{
+    const dt = new Date(entry.ts).toLocaleString('zh-TW');
+    return `<div style="display:flex; gap:14px; padding:10px 0; border-bottom:1px solid var(--line); font-size:13px;">
+      <span style="color:#999; white-space:nowrap;">${dt}</span>
+      <span style="color:var(--blue); font-weight:700; white-space:nowrap;">${escapeHtml(entry.user)}</span>
+      <span>${escapeHtml(entry.text)}</span>
+    </div>`;
+  }).join('');
+}
+function openLog(){ renderLogList(); document.getElementById('logOverlay').classList.add('show'); }
+function closeLog(){ document.getElementById('logOverlay').classList.remove('show'); }
+document.getElementById('logBtn').addEventListener('click', openLog);
 
 /* ---------------- State (synced via Firebase Realtime Database) ---------------- */
 let state = {
@@ -356,8 +392,8 @@ let state = {
     {id:'e27',badge:'83',name:'黃聖元',group:'役男',count:false},
   ],
   cells: {},        // cells[day][empId] = {type, num, editor, ts}
-  notes: {},         // notes[day] = { text:'', support:0 }
-  seqCounters: {},    // seqCounters['day_type'] = last used number (monotonic, per day per type)
+  notes: {},         // notes[day] = { text:'' }
+  changeLog: [],      // 新增/刪除/修改紀錄，最新在最前面，最多保留300筆，隨 Firebase 同步
 };
 
 const LEAVE_TYPES = ['公假','婚假','病假','喪假'];
@@ -376,7 +412,7 @@ function ensureDay(day){ if(!state.cells[day]) state.cells[day] = {}; }
 function getCell(day, empId){ ensureDay(day); return state.cells[day][empId] || null; }
 function setCellData(day, empId, data){ ensureDay(day); state.cells[day][empId] = data; }
 function clearCellData(day, empId){ ensureDay(day); delete state.cells[day][empId]; }
-function getNote(day){ return state.notes[day] || {text:'', support:0}; }
+function getNote(day){ return state.notes[day] || {text:''}; }
 
 function requireUser(){
   const u = state.currentUser.trim();
@@ -405,28 +441,28 @@ function requestUsed(day){
   Object.values(c).forEach(cell=>{ if(cell && REQUEST_TYPES.includes(cell.type)) n++; });
   return n;
 }
-function supportCount(day){
-  const note = getNote(day);
-  return parseInt(note.support)||0;
-}
 function slotsRemaining(day){
   const total = countableEmployees().length;
   const unavail = unavailableCount(day);
   const available = total - unavail;
   const base = available - state.dailyRequired;
-  return base - requestUsed(day) - supportCount(day);
+  return base - requestUsed(day);
 }
-// preview only, does not consume the counter
-function previewSeq(day, type){
-  const key = day+'_'+type;
-  return (state.seqCounters[key]||0) + 1;
-}
-// consumes / assigns a brand-new sequence number
-function consumeSeq(day, type){
-  const key = day+'_'+type;
-  const n = (state.seqCounters[key]||0) + 1;
-  state.seqCounters[key] = n;
+// 休/換/增 三種類型共用同一組編號：編號 = 當天目前已存在的（休+換+增）筆數 + 1
+// 這樣可以在刪除某筆後，下一筆新增自動遞補空出來的號碼，而不是一直往上累加
+function requestCountForDay(day, excludeEmpId){
+  const c = state.cells[day] || {};
+  let n = 0;
+  Object.keys(c).forEach(empId=>{
+    if(empId===excludeEmpId) return;
+    const cell = c[empId];
+    if(cell && REQUEST_TYPES.includes(cell.type)) n++;
+  });
   return n;
+}
+// preview only：目前用「排除自己這一格」的即時筆數 + 1 來顯示下一個號碼
+function previewSeq(day, excludeEmpId){
+  return requestCountForDay(day, excludeEmpId) + 1;
 }
 function cellLabel(cell){
   if(!cell) return '';
@@ -458,14 +494,14 @@ function render(){
   });
 
   const nDays = daysInMonth(state.rocYear, state.month);
-  let totalRemain = 0;
-  for(let d=1; d<=nDays; d++) totalRemain += slotsRemaining(d);
+  let totalLeave = 0;
+  for(let d=1; d<=nDays; d++) totalLeave += unavailableCount(d);
 
   let html = '<table><thead>';
   // row 1: group labels
   html += '<tr class="grouprow"><th class="col-sticky1"></th><th class="col-sticky2"></th>';
   groups.forEach(g=>{ html += `<th colspan="${g.span}">${escapeHtml(g.group||'未分組')}</th>`; });
-  html += `<th class="leavecounthead" rowspan="1">請假人數<br><b>${totalRemain}</b><span style="font-weight:400;font-size:10px;">本月合計</span></th>`;
+  html += `<th class="leavecounthead" rowspan="1">請假<br>人數<span style="font-weight:400;font-size:10px;">（本月合計 ${totalLeave}）</span></th>`;
   html += '<th>備註</th></tr>';
 
   // row 2: badge numbers (col1/2 blank)
@@ -482,6 +518,7 @@ function render(){
   for(let d=1; d<=nDays; d++){
     const wk = weekdayOf(state.rocYear, state.month, d);
     const rem = slotsRemaining(d);
+    const leaveCount = unavailableCount(d);
     let remClass = 'ok';
     if(rem===0) remClass='zero';
     if(rem<0) remClass='neg';
@@ -497,10 +534,9 @@ function render(){
       const title = cell ? `由 ${escapeHtml(cell.editor||'')} 填寫` : '點擊填寫';
       html += `<td class="cell ${cls}" data-day="${d}" data-emp="${e.id}" title="${title}">${label}</td>`;
     });
-    html += `<td class="leavecount ${remClass}">${rem}</td>`;
-    html += `<td class="notecell ${note.support>0?'hassupport':''}">
-        <input class="notetext" data-day="${d}" value="${escapeHtml(note.text||'')}" placeholder="備註 (如：四湖/水林支援、演習)">
-        <div class="supportrow"><label>支援人數(-1/人)</label><input type="number" min="0" class="supportnum" data-day="${d}" value="${note.support||0}"></div>
+    html += `<td class="leavecount ${remClass}" title="剩餘可請假名額：${rem}">${leaveCount}</td>`;
+    html += `<td class="notecell">
+        <input class="notetext" data-day="${d}" value="${escapeHtml(note.text||'')}" placeholder="備註 (如：四湖、東勢、組訓)">
       </td>`;
     html += '</tr>';
   }
@@ -569,16 +605,7 @@ function bindTableEvents(){
       const note = getNote(d);
       note.text = inp.value;
       state.notes[d] = note;
-      scheduleSave();
-    });
-  });
-  document.querySelectorAll('.supportnum').forEach(inp=>{
-    inp.addEventListener('change', ()=>{
-      const d = inp.dataset.day;
-      const note = getNote(d);
-      note.support = parseInt(inp.value)||0;
-      state.notes[d] = note;
-      render();
+      addLog(`【備註】${state.month}月${d}日 備註更新：「${inp.value ? inp.value : '(清空)'}」`);
       scheduleSave();
     });
   });
@@ -589,6 +616,10 @@ function applyDragV(td){
   dragVisited.push(key);
   const user = state.currentUser.trim() || '(未指定)';
   setCellData(parseInt(td.dataset.day), td.dataset.emp, {type:'V', num:dragCounter, editor:user, ts:Date.now()});
+  {
+    const emp = state.employees.find(e=>e.id===td.dataset.emp);
+    addLog(`【新增(拖拉)】${state.month}月${td.dataset.day}日 ${emp?emp.name:td.dataset.emp} 填入 V${dragCounter}`);
+  }
   dragCounter++;
   render();
   document.getElementById('vModeBtn').classList.add('active');
@@ -650,7 +681,7 @@ function renderExtraField(){
     const val = (existing && existing.type===selectedType) ? (existing.num||'') : '';
     box.innerHTML = `<label>編號（可留空）</label><input type="number" id="extraNum" min="1" value="${val}" placeholder="不填則不顯示數字">`;
   } else if(REQUEST_TYPES.includes(selectedType)){
-    const seq = (existing && existing.type===selectedType) ? existing.num : previewSeq(activeDay, selectedType);
+    const seq = (existing && existing.type===selectedType) ? existing.num : previewSeq(activeDay, activeEmp);
     const noteTxt = (existing && existing.type===selectedType) ? '（沿用原編號）' : '（本日下一個號碼，儲存後才會鎖定）';
     box.innerHTML = `<label>自動編號 ${noteTxt}</label><input type="number" id="extraNum" value="${seq}" readonly style="background:#F3F3F3;color:#777;">`;
   } else {
@@ -680,11 +711,19 @@ function saveCell(){
     if(existing && existing.type===selectedType){
       num = existing.num; // unchanged, keep same number
     } else {
-      num = consumeSeq(activeDay, selectedType); // brand new, lock in a fresh number
+      num = requestCountForDay(activeDay, activeEmp) + 1; // 即時計數：換/休/增 共用，會自動遞補刪除後空出的號碼
     }
   }
 
-  setCellData(activeDay, activeEmp, {type:selectedType, num:num, editor:user, ts:Date.now()});
+  const newCell = {type:selectedType, num:num, editor:user, ts:Date.now()};
+  const emp = state.employees.find(e=>e.id===activeEmp);
+  const empName = emp ? emp.name : activeEmp;
+  const isChange = existing && existing.type===selectedType && existing.num===num;
+  if(!isChange){
+    const action = existing ? '【修改】' : '【新增】';
+    addLog(`${action}${state.month}月${activeDay}日 ${empName} 填入 ${cellLabel(newCell)}`);
+  }
+  setCellData(activeDay, activeEmp, newCell);
   closeCellModal();
   render();
   scheduleSave();
@@ -692,6 +731,12 @@ function saveCell(){
 function clearCell(){
   const user = requireUser();
   if(!user) return;
+  const existing = getCell(activeDay, activeEmp);
+  if(existing){
+    const emp = state.employees.find(e=>e.id===activeEmp);
+    const empName = emp ? emp.name : activeEmp;
+    addLog(`【刪除】${state.month}月${activeDay}日 ${empName} 的「${cellLabel(existing)}」被清除`);
+  }
   clearCellData(activeDay, activeEmp);
   closeCellModal();
   render();
@@ -754,6 +799,7 @@ function applySettings(){
   document.getElementById('vStartInput').value = state.vStart;
   closeSettings();
   render();
+  addLog(`【設定】人員名冊／月份設定已更新（民國${state.rocYear}年${state.month}月，每日應上班${state.dailyRequired}人）`);
   scheduleSave();
 }
 
