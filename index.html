@@ -48,6 +48,11 @@
     font-size:13px; width:88px; padding:2px 2px; outline:none;
   }
   .userbox input:focus{border-bottom-color:var(--gold);}
+  .userbox input.needuser{border-bottom-color:var(--red); animation:needuserpulse 1.4s infinite;}
+  @keyframes needuserpulse{
+    0%,100%{background:transparent;}
+    50%{background:rgba(193,57,43,.28);}
+  }
   button.iconbtn{
     background:var(--gold); color:#1B2430; border:none; border-radius:8px;
     width:36px;height:36px; font-size:17px; cursor:pointer; display:flex; align-items:center; justify-content:center;
@@ -161,9 +166,23 @@
   .closebtn{position:sticky; top:0; float:right; background:none; border:none; font-size:20px; cursor:pointer; color:#999;}
   .settingsgrid{display:grid; grid-template-columns:1fr 1fr; gap:10px;}
   .hint{font-size:11px; color:#999; margin-top:2px;}
+
+  .updatebanner{
+    display:none; position:fixed; top:0; left:0; right:0; z-index:500;
+    text-align:center; background:var(--gold); color:#1B2430;
+    font-weight:700; font-size:13px; padding:10px 12px; cursor:pointer;
+    box-shadow:0 2px 8px rgba(0,0,0,.3); animation:updateblink 1.2s infinite;
+  }
+  .updatebanner.show{display:block;}
+  @keyframes updateblink{
+    0%,100%{opacity:1;}
+    50%{opacity:.4;}
+  }
 </style>
 </head>
 <body>
+
+<div id="updateBanner" class="updatebanner">🔔 偵測到 GitHub 上已有新版本，點此立即更新畫面</div>
 
 <header class="topbar">
   <div class="titleblock">
@@ -344,8 +363,21 @@ scheduleRef.on('value', (snapshot)=>{
   }
   isApplyingRemote = true;
   state = Object.assign({}, state, remote);
-  if(!state.cells) state.cells = {};
-  if(!state.notes) state.notes = {};
+  if(!state.monthsData) state.monthsData = {};
+  // 舊版資料相容：如果讀到的是舊格式（頂層 cells/notes，沒有按月分開），
+  // 就把它搬進目前這個年月的資料夾裡，之後就不會再互相污染
+  if(remote.cells || remote.notes){
+    const key = monthKey(state.rocYear, state.month);
+    if(!state.monthsData[key]) state.monthsData[key] = {cells:{}, notes:{}};
+    if(remote.cells && Object.keys(state.monthsData[key].cells||{}).length===0){
+      state.monthsData[key].cells = remote.cells;
+    }
+    if(remote.notes && Object.keys(state.monthsData[key].notes||{}).length===0){
+      state.monthsData[key].notes = remote.notes;
+    }
+    delete state.cells;
+    delete state.notes;
+  }
   if(!Array.isArray(state.employees)) state.employees = [];
   if(!Array.isArray(state.changeLog)) state.changeLog = [];
   hasLoadedOnce = true;
@@ -423,8 +455,7 @@ let state = {
     {id:'e26',badge:'82',name:'周聖杰',group:'役男',count:false},
     {id:'e27',badge:'83',name:'黃聖元',group:'役男',count:false},
   ],
-  cells: {},        // cells[day][empId] = {type, num, editor, ts}
-  notes: {},         // notes[day] = { text:'' }
+  monthsData: {},    // monthsData["115_7"] = { cells:{day:{empId:{...}}}, notes:{day:{...}} } — 每個年月各自獨立保存
   changeLog: [],      // 新增/刪除/修改紀錄，最新在最前面，最多保留300筆，隨 Firebase 同步
 };
 
@@ -440,26 +471,41 @@ let dragCounter = 1;
 /* ---------------- Helpers ---------------- */
 function daysInMonth(rocYear, month){ return new Date(rocYear+1911, month, 0).getDate(); }
 function weekdayOf(rocYear, month, day){ return WEEKDAYS[new Date(rocYear+1911, month-1, day).getDay()]; }
-function ensureDay(day){ if(!state.cells[day]) state.cells[day] = {}; }
-function getCell(day, empId){ ensureDay(day); return state.cells[day][empId] || null; }
-function setCellData(day, empId, data){ ensureDay(day); state.cells[day][empId] = data; }
-function clearCellData(day, empId){ ensureDay(day); delete state.cells[day][empId]; }
-function getNote(day){ return state.notes[day] || {text:'', minus1:false}; }
+function monthKey(rocYear, month){ return rocYear+'_'+month; }
+function currentMonthData(){
+  if(!state.monthsData) state.monthsData = {};
+  const key = monthKey(state.rocYear, state.month);
+  if(!state.monthsData[key]) state.monthsData[key] = {cells:{}, notes:{}};
+  const md = state.monthsData[key];
+  if(!md.cells) md.cells = {};
+  if(!md.notes) md.notes = {};
+  return md;
+}
+function ensureDay(day){ const md = currentMonthData(); if(!md.cells[day]) md.cells[day] = {}; }
+function getCell(day, empId){ ensureDay(day); return currentMonthData().cells[day][empId] || null; }
+function setCellData(day, empId, data){ ensureDay(day); currentMonthData().cells[day][empId] = data; }
+function clearCellData(day, empId){ ensureDay(day); delete currentMonthData().cells[day][empId]; }
+function getNote(day){ return currentMonthData().notes[day] || {text:'', minus1:false}; }
+function setNoteData(day, data){ currentMonthData().notes[day] = data; }
+function clearNoteData(day){ delete currentMonthData().notes[day]; }
 
 function requireUser(){
   const u = state.currentUser.trim();
+  const input = document.getElementById('currentUserInput');
   if(!u){
-    alert('請先在右上角填入「目前操作人」姓名，再進行編輯。');
-    document.getElementById('currentUserInput').focus();
+    input.classList.add('needuser');
+    alert('請先在右上角填入「目前操作人」姓名，才能進行任何操作。');
+    input.focus();
     return null;
   }
+  input.classList.remove('needuser');
   return u;
 }
 function countableEmployees(){ return state.employees.filter(e=>e.count); }
 
 // unavailable = has V, or has a leave-type entry (公假/婚假/病假/喪假), for that day
 function unavailableCount(day){
-  const c = state.cells[day] || {};
+  const c = currentMonthData().cells[day] || {};
   let n = 0;
   countableEmployees().forEach(e=>{
     const cell = c[e.id];
@@ -468,7 +514,7 @@ function unavailableCount(day){
   return n;
 }
 function requestUsed(day){
-  const c = state.cells[day] || {};
+  const c = currentMonthData().cells[day] || {};
   let n = 0;
   Object.values(c).forEach(cell=>{ if(cell && REQUEST_TYPES.includes(cell.type)) n++; });
   return n;
@@ -487,7 +533,7 @@ function slotsRemaining(day){
 // 休/換/增 三種類型共用同一組編號：編號 = 當天目前已存在的（休+換+增）筆數 + 1
 // 這樣可以在刪除某筆後，下一筆新增自動遞補空出來的號碼，而不是一直往上累加
 function requestCountForDay(day, excludeEmpId){
-  const c = state.cells[day] || {};
+  const c = currentMonthData().cells[day] || {};
   let n = 0;
   Object.keys(c).forEach(empId=>{
     if(empId===excludeEmpId) return;
@@ -520,6 +566,9 @@ function render(){
   document.getElementById('monthLabel').textContent = state.rocYear+'年'+state.month+'月';
   document.getElementById('dailyReqLabel').textContent = '每日應上班人數：'+state.dailyRequired+' 人（不含未勾選計入人力者，如役男）';
   document.getElementById('vStartInput').value = state.vStart;
+  const userInputEl = document.getElementById('currentUserInput');
+  if(document.activeElement !== userInputEl) userInputEl.value = state.currentUser || '';
+  userInputEl.classList.toggle('needuser', !(state.currentUser||'').trim());
 
   const emps = state.employees;
   const groups = [];
@@ -611,6 +660,7 @@ function bindTableEvents(){
     });
     td.addEventListener('mousedown', (e)=>{
       if(!vDragMode) return;
+      if(!requireUser()) return;
       e.preventDefault();
       dragging = true; dragVisited = [];
       dragCounter = parseInt(document.getElementById('vStartInput').value)||1;
@@ -619,6 +669,7 @@ function bindTableEvents(){
     td.addEventListener('mouseenter', ()=>{ if(vDragMode && dragging) applyDragV(td); });
     td.addEventListener('touchstart', (e)=>{
       if(!vDragMode) return;
+      if(!requireUser()) return;
       dragging = true; dragVisited = [];
       dragCounter = parseInt(document.getElementById('vStartInput').value)||1;
       applyDragV(td);
@@ -657,16 +708,21 @@ function endDrag(){ if(dragging){ dragging=false; dragVisited=[]; } }
 
 /* ---------------- V drag mode toggle ---------------- */
 document.getElementById('vModeBtn').addEventListener('click', ()=>{
+  if(!vDragMode && !requireUser()) return;
   vDragMode = !vDragMode;
   document.getElementById('vModeBtn').classList.toggle('active', vDragMode);
   document.getElementById('vModeBtn').textContent = vDragMode ? 'V 拖拉填入中（再按一次結束）' : 'V 批次拖拉填入';
 });
-document.getElementById('currentUserInput').addEventListener('input', (e)=>{ state.currentUser = e.target.value; });
+document.getElementById('currentUserInput').addEventListener('input', (e)=>{
+  state.currentUser = e.target.value;
+  e.target.classList.toggle('needuser', !e.target.value.trim());
+});
 
 /* ---------------- Cell modal ---------------- */
 let activeDay=null, activeEmp=null, selectedType=null;
 
 function openCellModal(day, empId){
+  if(!requireUser()) return;
   activeDay = day; activeEmp = empId;
   const emp = state.employees.find(e=>e.id===empId);
   const wk = weekdayOf(state.rocYear, state.month, day);
@@ -774,6 +830,7 @@ function closeCellModal(){
 /* ---------------- Note modal ---------------- */
 let activeNoteDay = null;
 function openNoteModal(day){
+  if(!requireUser()) return;
   activeNoteDay = day;
   const wk = weekdayOf(state.rocYear, state.month, day);
   const note = getNote(day);
@@ -793,7 +850,7 @@ function saveNote(){
   const d = activeNoteDay;
   const text = document.getElementById('noteTextInput').value;
   const minus1 = document.getElementById('noteMinus1Input').checked;
-  state.notes[d] = {text, minus1};
+  setNoteData(d, {text, minus1});
   addLog(`【備註】${state.month}月${d}日 備註更新：「${text ? text : '(清空)'}」${minus1?'（含-1人力）':''}`);
   closeNoteModal();
   render();
@@ -807,7 +864,7 @@ function clearNote(){
   if(had && (had.text || had.minus1)){
     addLog(`【刪除】${state.month}月${d}日 備註被清除`);
   }
-  delete state.notes[d];
+  clearNoteData(d);
   closeNoteModal();
   render();
   scheduleSave();
@@ -871,6 +928,39 @@ function applySettings(){
 
 /* ---------------- init ---------------- */
 render();
+
+/* ---------------- 自動偵測改版（GitHub 更新後自動提示，不用重新安裝/清快取） ---------------- */
+(function(){
+  const bannerEl = document.getElementById('updateBanner');
+  let baselineTag = null;
+  let checking = false;
+
+  function selfUrl(){
+    return location.origin + location.pathname; // 不含 query/hash，固定指向本頁面檔案本身
+  }
+  function getPageVersionTag(){
+    return fetch(selfUrl(), {method:'HEAD', cache:'no-store'})
+      .then(res => res.headers.get('etag') || res.headers.get('last-modified') || null)
+      .catch(()=> null);
+  }
+  function checkForUpdate(){
+    if(checking || bannerEl.classList.contains('show')) return;
+    checking = true;
+    getPageVersionTag().then(tag=>{
+      checking = false;
+      if(tag && baselineTag && tag !== baselineTag){
+        bannerEl.classList.add('show');
+      }
+    });
+  }
+  bannerEl.addEventListener('click', ()=>{
+    // 用帶時間戳的網址強制略過瀏覽器/桌面圖示的快取，抓最新版本
+    location.href = selfUrl() + '?_r=' + Date.now();
+  });
+  getPageVersionTag().then(tag=>{ baselineTag = tag; });
+  setInterval(checkForUpdate, 3*60*1000); // 每 3 分鐘背景檢查一次
+  document.addEventListener('visibilitychange', ()=>{ if(document.visibilityState==='visible') checkForUpdate(); });
+})();
 </script>
 </body>
 </html>
