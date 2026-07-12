@@ -4,6 +4,15 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
 <title>雲林縣消防局第三大隊北港分隊 預定表</title>
+<link rel="manifest" href="manifest.json">
+<link rel="icon" type="image/png" sizes="512x512" href="icon-512.png">
+<link rel="icon" type="image/png" sizes="192x192" href="icon-192.png">
+<link rel="apple-touch-icon" href="apple-touch-icon.png">
+<meta name="theme-color" content="#1B2430">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="北港排休表">
 <style>
   :root{
     --ink:#1B2430;
@@ -112,11 +121,13 @@
   th.leavecounthead{min-width:70px; font-size:11px; line-height:1.4; padding:6px 4px;}
   th.leavecounthead b{font-size:15px; display:block; color:var(--gold);}
 
-  td.notecell{min-width:150px; text-align:left; vertical-align:top; padding:3px 4px;}
-  td.notecell input.notetext{
-    width:100%; border:none; background:transparent; font-size:12px; padding:3px 2px; outline:none;
+  td.notecell{
+    width:90px; max-width:90px; text-align:left; vertical-align:middle; padding:5px 6px;
+    font-size:12px; cursor:pointer; white-space:normal; word-break:break-all; line-height:1.3;
   }
-  td.notecell input.notetext:focus{background:#FFF7E0;}
+  td.notecell:hover{outline:2px solid var(--gold); outline-offset:-2px;}
+  td.notecell.empty-note{color:#C7C2B6;}
+  td.notecell.minus1{background:#FDEFEA; box-shadow:inset 3px 0 0 var(--red); color:var(--red); font-weight:700;}
 
   /* modal */
   .overlay{position:fixed; inset:0; background:rgba(20,24,30,.55); display:none; align-items:center; justify-content:center; z-index:100; padding:16px;}
@@ -217,6 +228,27 @@
       <button class="btn-clear" onclick="clearCell()">清除</button>
       <button class="btn-cancel" onclick="closeCellModal()">取消</button>
       <button class="btn-save" onclick="saveCell()">儲存</button>
+    </div>
+  </div>
+</div>
+
+<!-- Note edit modal -->
+<div class="overlay" id="noteOverlay">
+  <div class="modal">
+    <button class="closebtn" onclick="closeNoteModal()">×</button>
+    <h2>編輯備註</h2>
+    <div class="modalsub" id="noteSub"></div>
+    <label>備註內容</label>
+    <input type="text" id="noteTextInput" placeholder="備註 (如：四湖、東勢、組訓)">
+    <label style="display:flex; align-items:center; gap:8px; margin-top:16px; cursor:pointer;">
+      <input type="checkbox" id="noteMinus1Input" style="width:auto; margin:0;">
+      <span style="color:var(--ink);">此備註需從當日可上班人力中 -1（例如支援外勤/其他單位）</span>
+    </label>
+    <div class="hint">勾選後，此欄僅顯示備註內容本身，但會自動影響當日剩餘可請假名額的計算。</div>
+    <div class="modal-actions">
+      <button class="btn-clear" onclick="clearNote()">清除</button>
+      <button class="btn-cancel" onclick="closeNoteModal()">取消</button>
+      <button class="btn-save" onclick="saveNote()">儲存</button>
     </div>
   </div>
 </div>
@@ -412,7 +444,7 @@ function ensureDay(day){ if(!state.cells[day]) state.cells[day] = {}; }
 function getCell(day, empId){ ensureDay(day); return state.cells[day][empId] || null; }
 function setCellData(day, empId, data){ ensureDay(day); state.cells[day][empId] = data; }
 function clearCellData(day, empId){ ensureDay(day); delete state.cells[day][empId]; }
-function getNote(day){ return state.notes[day] || {text:''}; }
+function getNote(day){ return state.notes[day] || {text:'', minus1:false}; }
 
 function requireUser(){
   const u = state.currentUser.trim();
@@ -441,10 +473,14 @@ function requestUsed(day){
   Object.values(c).forEach(cell=>{ if(cell && REQUEST_TYPES.includes(cell.type)) n++; });
   return n;
 }
+function noteMinus(day){
+  const note = getNote(day);
+  return (note && note.minus1) ? 1 : 0;
+}
 function slotsRemaining(day){
   const total = countableEmployees().length;
   const unavail = unavailableCount(day);
-  const available = total - unavail;
+  const available = total - unavail - noteMinus(day);
   const base = available - state.dailyRequired;
   return base - requestUsed(day);
 }
@@ -501,13 +537,13 @@ function render(){
   // row 1: group labels
   html += '<tr class="grouprow"><th class="col-sticky1"></th><th class="col-sticky2"></th>';
   groups.forEach(g=>{ html += `<th colspan="${g.span}">${escapeHtml(g.group||'未分組')}</th>`; });
-  html += `<th class="leavecounthead" rowspan="1">請假<br>人數<span style="font-weight:400;font-size:10px;">（本月合計 ${totalLeave}）</span></th>`;
+  html += `<th class="leavecounthead" rowspan="1">請假人數</th>`;
   html += '<th>備註</th></tr>';
 
-  // row 2: badge numbers (col1/2 blank)
-  html += '<tr class="badgerow"><th class="col-sticky1"></th><th class="col-sticky2"></th>';
+  // row 2: badge numbers (col-sticky2 labelled 人員番號; leave-count column shows monthly total)
+  html += '<tr class="badgerow"><th class="col-sticky1"></th><th class="col-sticky2">人員番號</th>';
   emps.forEach(e=>{ html += `<th>${escapeHtml(e.badge)}</th>`; });
-  html += '<th></th><th></th></tr>';
+  html += `<th style="font-size:10px;font-weight:400;">本月合計<br><b style="font-size:14px;color:var(--gold);">${totalLeave}</b></th><th></th></tr>`;
 
   // row 3: 日期 / 姓名 labels + employee names
   html += '<tr class="namerow"><th class="col-sticky1">日期</th><th class="col-sticky2">姓名</th>';
@@ -518,12 +554,13 @@ function render(){
   for(let d=1; d<=nDays; d++){
     const wk = weekdayOf(state.rocYear, state.month, d);
     const rem = slotsRemaining(d);
-    const leaveCount = unavailableCount(d);
     let remClass = 'ok';
     if(rem===0) remClass='zero';
     if(rem<0) remClass='neg';
     const rowFullClass = rem<=0 ? 'rowfull' : '';
     const note = getNote(d);
+    const noteText = note.text || '';
+    const noteCls = 'notecell' + (note.minus1 ? ' minus1' : '') + (noteText ? '' : ' empty-note');
     html += `<tr class="${rowFullClass}" data-day="${d}">`;
     html += `<td class="datecell col-sticky1">${d}</td>`;
     html += `<td class="wkcell col-sticky2 ${wk==='日'?'sun':(wk==='六'?'sat':'')}">${wk}</td>`;
@@ -534,10 +571,8 @@ function render(){
       const title = cell ? `由 ${escapeHtml(cell.editor||'')} 填寫` : '點擊填寫';
       html += `<td class="cell ${cls}" data-day="${d}" data-emp="${e.id}" title="${title}">${label}</td>`;
     });
-    html += `<td class="leavecount ${remClass}" title="剩餘可請假名額：${rem}">${leaveCount}</td>`;
-    html += `<td class="notecell">
-        <input class="notetext" data-day="${d}" value="${escapeHtml(note.text||'')}" placeholder="備註 (如：四湖、東勢、組訓)">
-      </td>`;
+    html += `<td class="leavecount ${remClass}" title="本日應上班 ${state.dailyRequired} 人，依目前已填寫情形自動計算剩餘可請假名額">${rem}</td>`;
+    html += `<td class="${noteCls}" data-day="${d}" title="點擊編輯備註">${escapeHtml(noteText)}</td>`;
     html += '</tr>';
   }
   html += '</tbody></table>';
@@ -599,15 +634,8 @@ function bindTableEvents(){
   document.addEventListener('mouseup', endDrag);
   document.addEventListener('touchend', endDrag);
 
-  document.querySelectorAll('.notetext').forEach(inp=>{
-    inp.addEventListener('change', ()=>{
-      const d = inp.dataset.day;
-      const note = getNote(d);
-      note.text = inp.value;
-      state.notes[d] = note;
-      addLog(`【備註】${state.month}月${d}日 備註更新：「${inp.value ? inp.value : '(清空)'}」`);
-      scheduleSave();
-    });
+  document.querySelectorAll('td.notecell').forEach(td=>{
+    td.addEventListener('click', ()=>{ openNoteModal(parseInt(td.dataset.day)); });
   });
 }
 function applyDragV(td){
@@ -682,8 +710,8 @@ function renderExtraField(){
     box.innerHTML = `<label>編號（可留空）</label><input type="number" id="extraNum" min="1" value="${val}" placeholder="不填則不顯示數字">`;
   } else if(REQUEST_TYPES.includes(selectedType)){
     const seq = (existing && existing.type===selectedType) ? existing.num : previewSeq(activeDay, activeEmp);
-    const noteTxt = (existing && existing.type===selectedType) ? '（沿用原編號）' : '（本日下一個號碼，儲存後才會鎖定）';
-    box.innerHTML = `<label>自動編號 ${noteTxt}</label><input type="number" id="extraNum" value="${seq}" readonly style="background:#F3F3F3;color:#777;">`;
+    const noteTxt = (existing && existing.type===selectedType) ? '（已自動帶入原編號，可自行修改）' : '（已自動預選下一個號碼，可自行修改）';
+    box.innerHTML = `<label>編號 ${noteTxt}</label><input type="number" id="extraNum" min="1" value="${seq}">`;
   } else {
     box.innerHTML = '';
   }
@@ -708,11 +736,7 @@ function saveCell(){
   } else if(LEAVE_TYPES.includes(selectedType)){
     num = numInput && numInput.value ? parseInt(numInput.value) : null;
   } else if(REQUEST_TYPES.includes(selectedType)){
-    if(existing && existing.type===selectedType){
-      num = existing.num; // unchanged, keep same number
-    } else {
-      num = requestCountForDay(activeDay, activeEmp) + 1; // 即時計數：換/休/增 共用，會自動遞補刪除後空出的號碼
-    }
+    num = numInput ? (parseInt(numInput.value)||1) : (requestCountForDay(activeDay, activeEmp) + 1);
   }
 
   const newCell = {type:selectedType, num:num, editor:user, ts:Date.now()};
@@ -745,6 +769,48 @@ function clearCell(){
 function closeCellModal(){
   document.getElementById('cellOverlay').classList.remove('show');
   activeDay=null; activeEmp=null; selectedType=null;
+}
+
+/* ---------------- Note modal ---------------- */
+let activeNoteDay = null;
+function openNoteModal(day){
+  activeNoteDay = day;
+  const wk = weekdayOf(state.rocYear, state.month, day);
+  const note = getNote(day);
+  document.getElementById('noteSub').textContent = `${state.month}月${day}日（${wk}）`;
+  document.getElementById('noteTextInput').value = note.text || '';
+  document.getElementById('noteMinus1Input').checked = !!note.minus1;
+  document.getElementById('noteOverlay').classList.add('show');
+  setTimeout(()=> document.getElementById('noteTextInput').focus(), 50);
+}
+function closeNoteModal(){
+  document.getElementById('noteOverlay').classList.remove('show');
+  activeNoteDay = null;
+}
+function saveNote(){
+  const user = requireUser();
+  if(!user) return;
+  const d = activeNoteDay;
+  const text = document.getElementById('noteTextInput').value;
+  const minus1 = document.getElementById('noteMinus1Input').checked;
+  state.notes[d] = {text, minus1};
+  addLog(`【備註】${state.month}月${d}日 備註更新：「${text ? text : '(清空)'}」${minus1?'（含-1人力）':''}`);
+  closeNoteModal();
+  render();
+  scheduleSave();
+}
+function clearNote(){
+  const user = requireUser();
+  if(!user) return;
+  const d = activeNoteDay;
+  const had = getNote(d);
+  if(had && (had.text || had.minus1)){
+    addLog(`【刪除】${state.month}月${d}日 備註被清除`);
+  }
+  delete state.notes[d];
+  closeNoteModal();
+  render();
+  scheduleSave();
 }
 
 /* ---------------- Settings modal ---------------- */
