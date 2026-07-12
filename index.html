@@ -1,0 +1,764 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
+<title>雲林縣消防局第三大隊北港分隊 預定表</title>
+<style>
+  :root{
+    --ink:#1B2430;
+    --ink2:#242F3E;
+    --paper:#F7F5F1;
+    --line:#DCD7CC;
+    --red:#C1392B;
+    --blue:#2E5FA3;
+    --amber:#D98E2C;
+    --green:#4C7A54;
+    --purple:#6B5CA5;
+    --gray:#9AA1AC;
+    --gold:#C79A3E;
+  }
+  *{box-sizing:border-box;}
+  body{
+    margin:0; font-family:"Noto Sans TC","PingFang TC","Microsoft JhengHei",sans-serif;
+    background:var(--paper); color:var(--ink);
+  }
+  header.topbar{
+    background:var(--ink); color:#fff; padding:14px 18px;
+    display:flex; align-items:center; justify-content:space-between; gap:12px;
+    position:sticky; top:0; z-index:50; flex-wrap:wrap;
+  }
+  header.topbar h1{ font-size:16px; margin:0; font-weight:700; letter-spacing:.3px; }
+  header.topbar .sub{ font-size:12px; color:#B9C2CE; margin-top:2px; font-variant-numeric:tabular-nums; }
+  .titleblock{display:flex; flex-direction:column; gap:1px;}
+  .topbar-right{display:flex; align-items:center; gap:10px; flex-wrap:wrap;}
+  .userbox{display:flex; align-items:center; gap:6px; background:#2A3542; padding:6px 10px; border-radius:8px;}
+  .userbox label{font-size:11px; color:#9FB0C4;}
+  .userbox input{
+    background:transparent; border:none; border-bottom:1px solid #4C5A6B; color:#fff;
+    font-size:13px; width:88px; padding:2px 2px; outline:none;
+  }
+  .userbox input:focus{border-bottom-color:var(--gold);}
+  button.iconbtn{
+    background:var(--gold); color:#1B2430; border:none; border-radius:8px;
+    width:36px;height:36px; font-size:17px; cursor:pointer; display:flex; align-items:center; justify-content:center;
+    box-shadow:0 1px 2px rgba(0,0,0,.3);
+  }
+  button.iconbtn:hover{filter:brightness(1.08);}
+
+  .toolbar{
+    display:flex; align-items:center; gap:14px; padding:10px 18px; background:#EFEAE0;
+    border-bottom:1px solid var(--line); flex-wrap:wrap; position:sticky; top:62px; z-index:49;
+  }
+  .toolbar .grp{display:flex; align-items:center; gap:6px; font-size:12px; color:#4b4438;}
+  .toolbar input[type=number]{width:56px; padding:4px 6px; border:1px solid var(--line); border-radius:6px; font-variant-numeric:tabular-nums;}
+  .toggle-btn{
+    padding:6px 12px; border-radius:20px; border:1px solid var(--blue); background:#fff; color:var(--blue);
+    font-size:12px; cursor:pointer; font-weight:600;
+  }
+  .toggle-btn.active{background:var(--blue); color:#fff;}
+  .legend{display:flex; gap:8px; flex-wrap:wrap; font-size:11px; margin-left:auto;}
+  .legend span{display:flex; align-items:center; gap:4px;}
+  .legend i{width:11px;height:11px;border-radius:3px; display:inline-block;}
+
+  .tablewrap{overflow:auto; max-height:calc(100vh - 122px); position:relative;}
+  table{border-collapse:separate; border-spacing:0; font-size:12.5px; min-width:100%;}
+  th,td{
+    border-right:1px solid var(--line); border-bottom:1px solid var(--line);
+    padding:0; text-align:center; white-space:nowrap;
+  }
+  th{background:#fff;}
+  .grouprow th{background:var(--ink2); color:#fff; font-size:11px; padding:4px 2px; font-weight:600;}
+  .badgerow th{background:#3A4658; color:#fff; font-size:11px; padding:4px 2px; font-variant-numeric:tabular-nums;}
+  .namerow th{background:#EFEAE0; font-size:12px; padding:5px 4px; font-weight:700; color:var(--ink);}
+
+  /* sticky header rows (top offsets set by JS) */
+  thead th{position:sticky; z-index:41;}
+  /* sticky left columns (left offsets set by JS) */
+  td.col-sticky1, th.col-sticky1{position:sticky; left:0; z-index:20; background:#fff;}
+  td.col-sticky2, th.col-sticky2{position:sticky; z-index:20; background:#fff;}
+  .grouprow th.col-sticky1, .grouprow th.col-sticky2{z-index:43; background:var(--ink2);}
+  .badgerow th.col-sticky1, .badgerow th.col-sticky2{z-index:43; background:#3A4658;}
+  .namerow th.col-sticky1, .namerow th.col-sticky2{z-index:43; background:#EFEAE0;}
+  td.col-sticky1{z-index:21;}
+  td.col-sticky2{z-index:21;}
+  th.colhead-side{writing-mode:horizontal-tb;}
+
+  td.datecell{width:34px; font-weight:700; font-variant-numeric:tabular-nums;}
+  td.wkcell{width:30px; font-weight:700;}
+  td.wkcell.sun{color:var(--red);}
+  td.wkcell.sat{color:var(--blue);}
+  tr.rowfull td.datecell, tr.rowfull td.wkcell{background:#FBE9E7;}
+
+  td.cell{
+    width:46px; height:30px; cursor:pointer; user-select:none; font-weight:700;
+    font-variant-numeric:tabular-nums; position:relative;
+  }
+  td.cell:hover{outline:2px solid var(--gold); outline-offset:-2px;}
+  td.cell.v{background:#E4ECF7; color:var(--blue);}
+  td.cell.leave-公假{background:#ECECEC; color:#555;}
+  td.cell.leave-婚假{background:#EFE7F7; color:var(--purple);}
+  td.cell.leave-病假{background:#EFE7F7; color:var(--purple);}
+  td.cell.leave-喪假{background:#EFE7F7; color:var(--purple);}
+  td.cell.type-休{background:#E6F0E7; color:var(--green);}
+  td.cell.type-換{background:#FBEEDA; color:var(--amber);}
+  td.cell.type-增{background:#EDE8F5; color:var(--purple);}
+  td.cell.empty{color:#C7C2B6;}
+
+  td.leavecount{width:44px; font-weight:800; font-variant-numeric:tabular-nums;}
+  td.leavecount.ok{color:var(--green);}
+  td.leavecount.zero{color:var(--red); background:#FBE1DE;}
+  td.leavecount.neg{color:#fff; background:var(--red);}
+  th.leavecounthead{min-width:70px; font-size:11px; line-height:1.4; padding:6px 4px;}
+  th.leavecounthead b{font-size:15px; display:block; color:var(--gold);}
+
+  td.notecell{min-width:150px; text-align:left; vertical-align:top; padding:3px 4px;}
+  td.notecell input.notetext{
+    width:100%; border:none; background:transparent; font-size:12px; padding:3px 2px; outline:none;
+  }
+  td.notecell input.notetext:focus{background:#FFF7E0;}
+  .supportrow{display:flex; align-items:center; gap:4px; margin-top:2px;}
+  .supportrow label{font-size:10px; color:#a35; white-space:nowrap;}
+  .supportrow input{width:36px; padding:2px 3px; font-size:11px; border:1px solid var(--line); border-radius:4px;}
+  td.notecell.hassupport{background:#FDEFEA;}
+
+  /* modal */
+  .overlay{position:fixed; inset:0; background:rgba(20,24,30,.55); display:none; align-items:center; justify-content:center; z-index:100; padding:16px;}
+  .overlay.show{display:flex;}
+  .modal{background:#fff; border-radius:14px; padding:20px; width:100%; max-width:420px; max-height:88vh; overflow:auto; box-shadow:0 20px 50px rgba(0,0,0,.35);}
+  .modal h2{margin:0 0 4px; font-size:16px; color:var(--ink);}
+  .modal .modalsub{font-size:12px; color:#8b8577; margin-bottom:14px;}
+  .modal label{display:block; font-size:12px; color:#555; margin:10px 0 4px;}
+  .modal input, .modal select{width:100%; padding:8px 10px; border:1px solid var(--line); border-radius:8px; font-size:14px;}
+  .typegrid{display:grid; grid-template-columns:repeat(4,1fr); gap:6px; margin-top:6px;}
+  .typegrid button{
+    padding:9px 4px; border-radius:8px; border:1px solid var(--line); background:#fdfcf9; cursor:pointer; font-size:12.5px; font-weight:600;
+  }
+  .typegrid button.sel{border-color:var(--gold); background:#FBF2D8; box-shadow:0 0 0 2px #FBF2D8 inset;}
+  .modal-actions{display:flex; gap:8px; margin-top:18px;}
+  .modal-actions button{flex:1; padding:10px; border-radius:8px; border:none; cursor:pointer; font-weight:700; font-size:13px;}
+  .btn-save{background:var(--ink); color:#fff;}
+  .btn-clear{background:#F5E6E4; color:var(--red);}
+  .btn-cancel{background:#EEE; color:#555;}
+  .metaline{font-size:11px; color:#999; margin-top:10px; border-top:1px dashed var(--line); padding-top:8px;}
+  .slotinfo{font-size:12px; margin-top:8px; padding:8px 10px; border-radius:8px; background:#F3F6FA; color:var(--blue);}
+  .slotinfo.warn{background:#FDECEA; color:var(--red);}
+
+  .empmgr{border:1px solid var(--line); border-radius:10px; margin-bottom:10px; overflow:hidden;}
+  .empmgr table{width:100%; font-size:12px;}
+  .empmgr th{background:#F3F0E8; padding:5px; font-size:11px;}
+  .empmgr td{padding:3px; border-bottom:1px solid var(--line); border-right:none;}
+  .empmgr input, .empmgr select{width:100%; padding:4px; font-size:12px; border:1px solid var(--line); border-radius:5px;}
+  .rowdel{background:#F5E6E4; color:var(--red); border:none; border-radius:5px; width:26px; height:26px; cursor:pointer;}
+  .addempbtn{width:100%; padding:8px; border:1px dashed var(--gold); border-radius:8px; background:#FFFBF0; color:#8a6d1c; font-weight:700; cursor:pointer; margin-top:6px;}
+  .closebtn{position:sticky; top:0; float:right; background:none; border:none; font-size:20px; cursor:pointer; color:#999;}
+  .settingsgrid{display:grid; grid-template-columns:1fr 1fr; gap:10px;}
+  .hint{font-size:11px; color:#999; margin-top:2px;}
+</style>
+</head>
+<body>
+
+<header class="topbar">
+  <div class="titleblock">
+    <h1>雲林縣消防局第三大隊北港分隊 <span id="monthLabel"></span>預定表</h1>
+    <div class="sub" id="dailyReqLabel"></div>
+  </div>
+  <div class="topbar-right">
+    <div class="userbox">
+      <label>同步狀態</label>
+      <span id="syncStatus" style="font-size:12px;color:#9FB0C4;">連線中…</span>
+    </div>
+    <div class="userbox">
+      <label>目前操作人</label>
+      <input id="currentUserInput" placeholder="請輸入姓名">
+    </div>
+    <button class="iconbtn" id="settingsBtn" title="設定">⚙</button>
+  </div>
+</header>
+
+<div class="toolbar">
+  <div class="grp">
+    <button class="toggle-btn" id="vModeBtn">V 批次拖拉填入</button>
+    <span>起始值</span>
+    <input type="number" id="vStartInput" value="1" min="1">
+  </div>
+  <div class="legend">
+    <span><i style="background:#E4ECF7"></i>V輪休</span>
+    <span><i style="background:#ECECEC"></i>公假</span>
+    <span><i style="background:#EFE7F7"></i>婚/病/喪假</span>
+    <span><i style="background:#E6F0E7"></i>休</span>
+    <span><i style="background:#FBEEDA"></i>換</span>
+    <span><i style="background:#EDE8F5"></i>增</span>
+    <span><i style="background:#FDEFEA;border:1px solid #C1392B"></i>備註含支援(-1)</span>
+  </div>
+</div>
+
+<div class="tablewrap" id="tablewrap"></div>
+
+<!-- Cell edit modal -->
+<div class="overlay" id="cellOverlay">
+  <div class="modal">
+    <button class="closebtn" onclick="closeCellModal()">×</button>
+    <h2 id="cellTitle">編輯</h2>
+    <div class="modalsub" id="cellSub"></div>
+    <div class="slotinfo" id="slotInfo"></div>
+    <label>選擇類別</label>
+    <div class="typegrid" id="typeGrid"></div>
+    <div id="extraField"></div>
+    <div class="metaline" id="metaLine"></div>
+    <div class="modal-actions">
+      <button class="btn-clear" onclick="clearCell()">清除</button>
+      <button class="btn-cancel" onclick="closeCellModal()">取消</button>
+      <button class="btn-save" onclick="saveCell()">儲存</button>
+    </div>
+  </div>
+</div>
+
+<!-- Settings modal -->
+<div class="overlay" id="settingsOverlay">
+  <div class="modal" style="max-width:640px;">
+    <button class="closebtn" onclick="closeSettings()">×</button>
+    <h2>設定</h2>
+    <div class="modalsub">人員名冊、每日上班人數、月份等設定（每月月中可先在此更新下個月人員異動）</div>
+
+    <div class="settingsgrid">
+      <div>
+        <label>民國年</label>
+        <input type="number" id="setYear" value="115">
+      </div>
+      <div>
+        <label>月份</label>
+        <input type="number" id="setMonth" value="7" min="1" max="12">
+      </div>
+      <div>
+        <label>每日應上班人數</label>
+        <input type="number" id="setDailyReq" value="8" min="0">
+      </div>
+      <div>
+        <label>V 預設起始值</label>
+        <input type="number" id="setVStart" value="1" min="1">
+      </div>
+    </div>
+
+    <label style="margin-top:16px;">人員名冊</label>
+    <div class="hint">分組欄位可自行輸入（例如 幹部 / A班 / B班 / 役男），欄位順序＝表格左到右順序，可依需求新增或刪除。「計入人力」取消勾選（例如役男）則不會列入每日應上班人數的計算基礎。</div>
+    <div class="empmgr">
+      <table>
+        <thead><tr><th>番號</th><th>姓名</th><th>分組</th><th>計入人力</th><th></th></tr></thead>
+        <tbody id="empTableBody"></tbody>
+      </table>
+    </div>
+    <button class="addempbtn" id="addEmpBtn">＋ 新增人員欄位</button>
+
+    <div class="modal-actions">
+      <button class="btn-cancel" onclick="closeSettings()">取消</button>
+      <button class="btn-save" onclick="applySettings()">儲存並套用</button>
+    </div>
+  </div>
+</div>
+
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-database-compat.js"></script>
+<script>
+/* ---------------- Firebase 跨裝置同步 ---------------- */
+const firebaseConfig = {
+  apiKey: "AIzaSyDEj3wASuua7xfXGNviN3NexzkpiniV31Q",
+  authDomain: "beigang-schedule.firebaseapp.com",
+  databaseURL: "https://beigang-schedule-default-rtdb.asia-southeast1.firebasedatabase.app",
+  projectId: "beigang-schedule",
+  storageBucket: "beigang-schedule.firebasestorage.app",
+  messagingSenderId: "189717658245",
+  appId: "1:189717658245:web:18461bc6867849658ec7ec"
+};
+firebase.initializeApp(firebaseConfig);
+const db = firebase.database();
+const scheduleRef = db.ref('schedule/current');
+
+let isApplyingRemote = false;   // true while we are writing a remote snapshot into local state
+let saveTimer = null;           // debounce handle
+let hasLoadedOnce = false;      // becomes true after first snapshot is applied
+
+function setSyncStatus(text, color){
+  const el = document.getElementById('syncStatus');
+  if(el){ el.textContent = text; el.style.color = color || '#9FB0C4'; }
+}
+
+function scheduleSave(){
+  if(isApplyingRemote) return; // don't echo back a remote update as a new save
+  setSyncStatus('儲存中…', '#D98E2C');
+  if(saveTimer) clearTimeout(saveTimer);
+  saveTimer = setTimeout(()=>{
+    scheduleRef.set(state)
+      .then(()=> setSyncStatus('已同步', '#4C7A54'))
+      .catch(err=>{ console.error(err); setSyncStatus('同步失敗', '#C1392B'); });
+  }, 400);
+}
+
+scheduleRef.on('value', (snapshot)=>{
+  const remote = snapshot.val();
+  if(!remote){
+    // 資料庫是空的（第一次啟用），把目前預設資料上傳當作初始值
+    hasLoadedOnce = true;
+    scheduleSave();
+    setSyncStatus('已同步', '#4C7A54');
+    return;
+  }
+  isApplyingRemote = true;
+  state = Object.assign({}, state, remote);
+  if(!state.cells) state.cells = {};
+  if(!state.notes) state.notes = {};
+  if(!state.seqCounters) state.seqCounters = {};
+  if(!Array.isArray(state.employees)) state.employees = [];
+  hasLoadedOnce = true;
+  render();
+  document.getElementById('vStartInput').value = state.vStart;
+  isApplyingRemote = false;
+  setSyncStatus('已同步', '#4C7A54');
+}, (err)=>{
+  console.error(err);
+  setSyncStatus('連線失敗', '#C1392B');
+});
+
+/* ---------------- State (synced via Firebase Realtime Database) ---------------- */
+let state = {
+  rocYear: 115,
+  month: 7,
+  dailyRequired: 8,
+  vStart: 1,
+  currentUser: "",
+  employees: [
+    {id:'e1',badge:'1',name:'陳思淵',group:'幹部',count:true},
+    {id:'e2',badge:'2',name:'蘇建維',group:'幹部',count:true},
+    {id:'e3',badge:'3',name:'張文吉',group:'幹部',count:true},
+    {id:'e4',badge:'25',name:'黃國睿',group:'A班',count:true},
+    {id:'e5',badge:'5',name:'林詩穎',group:'A班',count:true},
+    {id:'e6',badge:'8',name:'侯又正',group:'A班',count:true},
+    {id:'e7',badge:'9',name:'蔡明坤',group:'A班',count:true},
+    {id:'e8',badge:'11',name:'陳育棠',group:'A班',count:true},
+    {id:'e9',badge:'12',name:'蘇蓮宗',group:'A班',count:true},
+    {id:'e10',badge:'14',name:'劉建成',group:'A班',count:true},
+    {id:'e11',badge:'19',name:'陳建溢',group:'A班',count:true},
+    {id:'e12',badge:'20',name:'黃續雄',group:'A班',count:true},
+    {id:'e13',badge:'23',name:'陳政彥',group:'A班',count:true},
+    {id:'e14',badge:'6',name:'王俊鴻',group:'B班',count:true},
+    {id:'e15',badge:'7',name:'江育忠',group:'B班',count:true},
+    {id:'e16',badge:'10',name:'黃榮宗',group:'B班',count:true},
+    {id:'e17',badge:'13',name:'蔡豐淵',group:'B班',count:true},
+    {id:'e18',badge:'15',name:'李家豪',group:'B班',count:true},
+    {id:'e19',badge:'16',name:'張雅倫',group:'B班',count:true},
+    {id:'e20',badge:'17',name:'蔡健鴻',group:'B班',count:true},
+    {id:'e21',badge:'18',name:'江昌林',group:'B班',count:true},
+    {id:'e22',badge:'21',name:'吳佳穎',group:'B班',count:true},
+    {id:'e23',badge:'22',name:'蘇俊彥',group:'B班',count:true},
+    {id:'e24',badge:'24',name:'黃鐘慶',group:'B班',count:true},
+    {id:'e25',badge:'81',name:'吳恩哲',group:'役男',count:false},
+    {id:'e26',badge:'82',name:'周聖杰',group:'役男',count:false},
+    {id:'e27',badge:'83',name:'黃聖元',group:'役男',count:false},
+  ],
+  cells: {},        // cells[day][empId] = {type, num, editor, ts}
+  notes: {},         // notes[day] = { text:'', support:0 }
+  seqCounters: {},    // seqCounters['day_type'] = last used number (monotonic, per day per type)
+};
+
+const LEAVE_TYPES = ['公假','婚假','病假','喪假'];
+const REQUEST_TYPES = ['休','換','增'];
+const WEEKDAYS = ['日','一','二','三','四','五','六'];
+
+let vDragMode = false;
+let dragging = false;
+let dragVisited = [];
+let dragCounter = 1;
+
+/* ---------------- Helpers ---------------- */
+function daysInMonth(rocYear, month){ return new Date(rocYear+1911, month, 0).getDate(); }
+function weekdayOf(rocYear, month, day){ return WEEKDAYS[new Date(rocYear+1911, month-1, day).getDay()]; }
+function ensureDay(day){ if(!state.cells[day]) state.cells[day] = {}; }
+function getCell(day, empId){ ensureDay(day); return state.cells[day][empId] || null; }
+function setCellData(day, empId, data){ ensureDay(day); state.cells[day][empId] = data; }
+function clearCellData(day, empId){ ensureDay(day); delete state.cells[day][empId]; }
+function getNote(day){ return state.notes[day] || {text:'', support:0}; }
+
+function requireUser(){
+  const u = state.currentUser.trim();
+  if(!u){
+    alert('請先在右上角填入「目前操作人」姓名，再進行編輯。');
+    document.getElementById('currentUserInput').focus();
+    return null;
+  }
+  return u;
+}
+function countableEmployees(){ return state.employees.filter(e=>e.count); }
+
+// unavailable = has V, or has a leave-type entry (公假/婚假/病假/喪假), for that day
+function unavailableCount(day){
+  const c = state.cells[day] || {};
+  let n = 0;
+  countableEmployees().forEach(e=>{
+    const cell = c[e.id];
+    if(cell && (cell.type==='V' || LEAVE_TYPES.includes(cell.type))) n++;
+  });
+  return n;
+}
+function requestUsed(day){
+  const c = state.cells[day] || {};
+  let n = 0;
+  Object.values(c).forEach(cell=>{ if(cell && REQUEST_TYPES.includes(cell.type)) n++; });
+  return n;
+}
+function supportCount(day){
+  const note = getNote(day);
+  return parseInt(note.support)||0;
+}
+function slotsRemaining(day){
+  const total = countableEmployees().length;
+  const unavail = unavailableCount(day);
+  const available = total - unavail;
+  const base = available - state.dailyRequired;
+  return base - requestUsed(day) - supportCount(day);
+}
+// preview only, does not consume the counter
+function previewSeq(day, type){
+  const key = day+'_'+type;
+  return (state.seqCounters[key]||0) + 1;
+}
+// consumes / assigns a brand-new sequence number
+function consumeSeq(day, type){
+  const key = day+'_'+type;
+  const n = (state.seqCounters[key]||0) + 1;
+  state.seqCounters[key] = n;
+  return n;
+}
+function cellLabel(cell){
+  if(!cell) return '';
+  if(cell.type==='V') return 'V'+cell.num;
+  if(LEAVE_TYPES.includes(cell.type)) return cell.type + (cell.num?cell.num:'');
+  if(REQUEST_TYPES.includes(cell.type)) return cell.type + cell.num;
+  return '';
+}
+function cellClass(cell){
+  if(!cell) return 'empty';
+  if(cell.type==='V') return 'v';
+  if(LEAVE_TYPES.includes(cell.type)) return 'leave-'+cell.type;
+  if(REQUEST_TYPES.includes(cell.type)) return 'type-'+cell.type;
+  return 'empty';
+}
+
+/* ---------------- Render ---------------- */
+function render(){
+  document.getElementById('monthLabel').textContent = state.rocYear+'年'+state.month+'月';
+  document.getElementById('dailyReqLabel').textContent = '每日應上班人數：'+state.dailyRequired+' 人（不含未勾選計入人力者，如役男）';
+  document.getElementById('vStartInput').value = state.vStart;
+
+  const emps = state.employees;
+  const groups = [];
+  emps.forEach(e=>{
+    const last = groups[groups.length-1];
+    if(last && last.group===e.group) last.span++;
+    else groups.push({group:e.group, span:1});
+  });
+
+  const nDays = daysInMonth(state.rocYear, state.month);
+  let totalRemain = 0;
+  for(let d=1; d<=nDays; d++) totalRemain += slotsRemaining(d);
+
+  let html = '<table><thead>';
+  // row 1: group labels
+  html += '<tr class="grouprow"><th class="col-sticky1"></th><th class="col-sticky2"></th>';
+  groups.forEach(g=>{ html += `<th colspan="${g.span}">${escapeHtml(g.group||'未分組')}</th>`; });
+  html += `<th class="leavecounthead" rowspan="1">請假人數<br><b>${totalRemain}</b><span style="font-weight:400;font-size:10px;">本月合計</span></th>`;
+  html += '<th>備註</th></tr>';
+
+  // row 2: badge numbers (col1/2 blank)
+  html += '<tr class="badgerow"><th class="col-sticky1"></th><th class="col-sticky2"></th>';
+  emps.forEach(e=>{ html += `<th>${escapeHtml(e.badge)}</th>`; });
+  html += '<th></th><th></th></tr>';
+
+  // row 3: 日期 / 姓名 labels + employee names
+  html += '<tr class="namerow"><th class="col-sticky1">日期</th><th class="col-sticky2">姓名</th>';
+  emps.forEach(e=>{ html += `<th>${escapeHtml(e.name)}</th>`; });
+  html += '<th></th><th></th></tr>';
+  html += '</thead><tbody>';
+
+  for(let d=1; d<=nDays; d++){
+    const wk = weekdayOf(state.rocYear, state.month, d);
+    const rem = slotsRemaining(d);
+    let remClass = 'ok';
+    if(rem===0) remClass='zero';
+    if(rem<0) remClass='neg';
+    const rowFullClass = rem<=0 ? 'rowfull' : '';
+    const note = getNote(d);
+    html += `<tr class="${rowFullClass}" data-day="${d}">`;
+    html += `<td class="datecell col-sticky1">${d}</td>`;
+    html += `<td class="wkcell col-sticky2 ${wk==='日'?'sun':(wk==='六'?'sat':'')}">${wk}</td>`;
+    emps.forEach(e=>{
+      const cell = getCell(d, e.id);
+      const label = cellLabel(cell);
+      const cls = cellClass(cell);
+      const title = cell ? `由 ${escapeHtml(cell.editor||'')} 填寫` : '點擊填寫';
+      html += `<td class="cell ${cls}" data-day="${d}" data-emp="${e.id}" title="${title}">${label}</td>`;
+    });
+    html += `<td class="leavecount ${remClass}">${rem}</td>`;
+    html += `<td class="notecell ${note.support>0?'hassupport':''}">
+        <input class="notetext" data-day="${d}" value="${escapeHtml(note.text||'')}" placeholder="備註 (如：四湖/水林支援、演習)">
+        <div class="supportrow"><label>支援人數(-1/人)</label><input type="number" min="0" class="supportnum" data-day="${d}" value="${note.support||0}"></div>
+      </td>`;
+    html += '</tr>';
+  }
+  html += '</tbody></table>';
+  document.getElementById('tablewrap').innerHTML = html;
+  bindTableEvents();
+  fixStickyOffsets();
+}
+function escapeHtml(s){
+  return String(s==null?'':s).replace(/[&<>"']/g, m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]));
+}
+
+/* dynamically compute sticky top offsets (header rows) and left offsets (frozen columns)
+   so freezing stays correct regardless of actual rendered row/column sizes */
+function fixStickyOffsets(){
+  const wrap = document.getElementById('tablewrap');
+  const theadRows = wrap.querySelectorAll('thead tr');
+  let top = 0;
+  theadRows.forEach(tr=>{
+    const ths = tr.querySelectorAll('th');
+    ths.forEach(th=> th.style.top = top+'px');
+    // measure after setting (height doesn't depend on top)
+    top += tr.getBoundingClientRect().height;
+  });
+  const col1 = wrap.querySelector('.col-sticky1');
+  const col1w = col1 ? col1.getBoundingClientRect().width : 34;
+  wrap.querySelectorAll('.col-sticky2').forEach(el=> el.style.left = col1w+'px');
+}
+window.addEventListener('resize', ()=>{ fixStickyOffsets(); });
+
+function bindTableEvents(){
+  const cells = document.querySelectorAll('td.cell');
+  cells.forEach(td=>{
+    td.addEventListener('click', ()=>{
+      if(vDragMode) return;
+      openCellModal(parseInt(td.dataset.day), td.dataset.emp);
+    });
+    td.addEventListener('mousedown', (e)=>{
+      if(!vDragMode) return;
+      e.preventDefault();
+      dragging = true; dragVisited = [];
+      dragCounter = parseInt(document.getElementById('vStartInput').value)||1;
+      applyDragV(td);
+    });
+    td.addEventListener('mouseenter', ()=>{ if(vDragMode && dragging) applyDragV(td); });
+    td.addEventListener('touchstart', (e)=>{
+      if(!vDragMode) return;
+      dragging = true; dragVisited = [];
+      dragCounter = parseInt(document.getElementById('vStartInput').value)||1;
+      applyDragV(td);
+    });
+    td.addEventListener('touchmove', (e)=>{
+      if(!vDragMode || !dragging) return;
+      e.preventDefault();
+      const t = e.touches[0];
+      const el = document.elementFromPoint(t.clientX, t.clientY);
+      if(el && el.classList.contains('cell')) applyDragV(el);
+    }, {passive:false});
+  });
+  document.addEventListener('mouseup', endDrag);
+  document.addEventListener('touchend', endDrag);
+
+  document.querySelectorAll('.notetext').forEach(inp=>{
+    inp.addEventListener('change', ()=>{
+      const d = inp.dataset.day;
+      const note = getNote(d);
+      note.text = inp.value;
+      state.notes[d] = note;
+      scheduleSave();
+    });
+  });
+  document.querySelectorAll('.supportnum').forEach(inp=>{
+    inp.addEventListener('change', ()=>{
+      const d = inp.dataset.day;
+      const note = getNote(d);
+      note.support = parseInt(inp.value)||0;
+      state.notes[d] = note;
+      render();
+      scheduleSave();
+    });
+  });
+}
+function applyDragV(td){
+  const key = td.dataset.day+'_'+td.dataset.emp;
+  if(dragVisited.includes(key)) return;
+  dragVisited.push(key);
+  const user = state.currentUser.trim() || '(未指定)';
+  setCellData(parseInt(td.dataset.day), td.dataset.emp, {type:'V', num:dragCounter, editor:user, ts:Date.now()});
+  dragCounter++;
+  render();
+  document.getElementById('vModeBtn').classList.add('active');
+  scheduleSave();
+}
+function endDrag(){ if(dragging){ dragging=false; dragVisited=[]; } }
+
+/* ---------------- V drag mode toggle ---------------- */
+document.getElementById('vModeBtn').addEventListener('click', ()=>{
+  vDragMode = !vDragMode;
+  document.getElementById('vModeBtn').classList.toggle('active', vDragMode);
+  document.getElementById('vModeBtn').textContent = vDragMode ? 'V 拖拉填入中（再按一次結束）' : 'V 批次拖拉填入';
+});
+document.getElementById('currentUserInput').addEventListener('input', (e)=>{ state.currentUser = e.target.value; });
+
+/* ---------------- Cell modal ---------------- */
+let activeDay=null, activeEmp=null, selectedType=null;
+
+function openCellModal(day, empId){
+  activeDay = day; activeEmp = empId;
+  const emp = state.employees.find(e=>e.id===empId);
+  const wk = weekdayOf(state.rocYear, state.month, day);
+  const cell = getCell(day, empId);
+  selectedType = cell ? cell.type : null;
+
+  document.getElementById('cellTitle').textContent = `${emp.name}（番號${emp.badge}）`;
+  document.getElementById('cellSub').textContent = `${state.month}月${day}日（${wk}）`;
+
+  const rem = slotsRemaining(day);
+  const slotEl = document.getElementById('slotInfo');
+  slotEl.className = 'slotinfo' + (rem<=0 ? ' warn':'');
+  slotEl.textContent = `本日剩餘可請假名額：${rem} 人（應上班 ${state.dailyRequired} 人）`;
+
+  const allTypes = ['V','公假','婚假','病假','喪假','休','換','增'];
+  const grid = document.getElementById('typeGrid');
+  grid.innerHTML = allTypes.map(t=>`<button data-t="${t}" class="${selectedType===t?'sel':''}">${t}</button>`).join('');
+  grid.querySelectorAll('button').forEach(b=>{
+    b.addEventListener('click', ()=>{
+      selectedType = b.dataset.t;
+      grid.querySelectorAll('button').forEach(x=>x.classList.remove('sel'));
+      b.classList.add('sel');
+      renderExtraField();
+    });
+  });
+  renderExtraField();
+
+  const meta = document.getElementById('metaLine');
+  meta.textContent = cell ? `最後編輯：由 ${cell.editor||'未知'} 於 ${new Date(cell.ts).toLocaleString('zh-TW')}` : '尚無填寫紀錄';
+
+  document.getElementById('cellOverlay').classList.add('show');
+}
+function renderExtraField(){
+  const box = document.getElementById('extraField');
+  const existing = getCell(activeDay, activeEmp);
+  if(selectedType==='V'){
+    const val = (existing && existing.type==='V') ? existing.num : (parseInt(document.getElementById('vStartInput').value)||1);
+    box.innerHTML = `<label>V 編號</label><input type="number" id="extraNum" min="1" value="${val}">`;
+  } else if(LEAVE_TYPES.includes(selectedType)){
+    const val = (existing && existing.type===selectedType) ? (existing.num||'') : '';
+    box.innerHTML = `<label>編號（可留空）</label><input type="number" id="extraNum" min="1" value="${val}" placeholder="不填則不顯示數字">`;
+  } else if(REQUEST_TYPES.includes(selectedType)){
+    const seq = (existing && existing.type===selectedType) ? existing.num : previewSeq(activeDay, selectedType);
+    const noteTxt = (existing && existing.type===selectedType) ? '（沿用原編號）' : '（本日下一個號碼，儲存後才會鎖定）';
+    box.innerHTML = `<label>自動編號 ${noteTxt}</label><input type="number" id="extraNum" value="${seq}" readonly style="background:#F3F3F3;color:#777;">`;
+  } else {
+    box.innerHTML = '';
+  }
+}
+function saveCell(){
+  if(!selectedType){ alert('請先選擇類別'); return; }
+  const user = requireUser();
+  if(!user) return;
+
+  const rem = slotsRemaining(activeDay);
+  const existing = getCell(activeDay, activeEmp);
+  const isNewRequest = REQUEST_TYPES.includes(selectedType) && (!existing || existing.type!==selectedType);
+  if(isNewRequest && rem<=0){
+    const ok = confirm(`本日（${state.month}月${activeDay}日）剩餘可請假名額為 ${rem}，是否仍要新增「${selectedType}」？`);
+    if(!ok) return;
+  }
+
+  let num = null;
+  const numInput = document.getElementById('extraNum');
+  if(selectedType==='V'){
+    num = numInput ? (parseInt(numInput.value)||1) : 1;
+  } else if(LEAVE_TYPES.includes(selectedType)){
+    num = numInput && numInput.value ? parseInt(numInput.value) : null;
+  } else if(REQUEST_TYPES.includes(selectedType)){
+    if(existing && existing.type===selectedType){
+      num = existing.num; // unchanged, keep same number
+    } else {
+      num = consumeSeq(activeDay, selectedType); // brand new, lock in a fresh number
+    }
+  }
+
+  setCellData(activeDay, activeEmp, {type:selectedType, num:num, editor:user, ts:Date.now()});
+  closeCellModal();
+  render();
+  scheduleSave();
+}
+function clearCell(){
+  const user = requireUser();
+  if(!user) return;
+  clearCellData(activeDay, activeEmp);
+  closeCellModal();
+  render();
+  scheduleSave();
+}
+function closeCellModal(){
+  document.getElementById('cellOverlay').classList.remove('show');
+  activeDay=null; activeEmp=null; selectedType=null;
+}
+
+/* ---------------- Settings modal ---------------- */
+document.getElementById('settingsBtn').addEventListener('click', openSettings);
+function openSettings(){
+  document.getElementById('setYear').value = state.rocYear;
+  document.getElementById('setMonth').value = state.month;
+  document.getElementById('setDailyReq').value = state.dailyRequired;
+  document.getElementById('setVStart').value = state.vStart;
+  renderEmpTable();
+  document.getElementById('settingsOverlay').classList.add('show');
+}
+function closeSettings(){ document.getElementById('settingsOverlay').classList.remove('show'); }
+function renderEmpTable(){
+  const body = document.getElementById('empTableBody');
+  body.innerHTML = state.employees.map(e=>`
+    <tr data-id="${e.id}">
+      <td><input class="f-badge" value="${escapeHtml(e.badge)}"></td>
+      <td><input class="f-name" value="${escapeHtml(e.name)}"></td>
+      <td><input class="f-group" value="${escapeHtml(e.group)}"></td>
+      <td style="text-align:center;"><input type="checkbox" class="f-count" ${e.count?'checked':''}></td>
+      <td><button class="rowdel" onclick="delEmpRow('${e.id}')">✕</button></td>
+    </tr>
+  `).join('');
+}
+function delEmpRow(id){
+  if(!confirm('確定刪除此人員欄位？該員過去已填寫的紀錄也會一併移除。')) return;
+  state.employees = state.employees.filter(e=>e.id!==id);
+  renderEmpTable();
+}
+document.getElementById('addEmpBtn').addEventListener('click', ()=>{
+  const id = 'e_'+Math.random().toString(36).slice(2,9);
+  state.employees.push({id, badge:'', name:'', group:'', count:true});
+  renderEmpTable();
+});
+function applySettings(){
+  const rows = document.querySelectorAll('#empTableBody tr');
+  const newEmps = [];
+  rows.forEach(r=>{
+    const id = r.dataset.id;
+    const badge = r.querySelector('.f-badge').value.trim();
+    const name = r.querySelector('.f-name').value.trim();
+    const group = r.querySelector('.f-group').value.trim();
+    const count = r.querySelector('.f-count').checked;
+    if(name) newEmps.push({id, badge, name, group, count});
+  });
+  state.employees = newEmps;
+  state.rocYear = parseInt(document.getElementById('setYear').value)||state.rocYear;
+  state.month = parseInt(document.getElementById('setMonth').value)||state.month;
+  state.dailyRequired = parseInt(document.getElementById('setDailyReq').value)||0;
+  state.vStart = parseInt(document.getElementById('setVStart').value)||1;
+  document.getElementById('vStartInput').value = state.vStart;
+  closeSettings();
+  render();
+  scheduleSave();
+}
+
+/* ---------------- init ---------------- */
+render();
+</script>
+</body>
+</html>
