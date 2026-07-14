@@ -2,7 +2,7 @@
 <html lang="zh-Hant">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
 <title>雲林縣消防局第三大隊北港分隊 預定表</title>
 <link rel="manifest" href="manifest.json">
 <link rel="icon" type="image/png" sizes="512x512" href="icon-512.png">
@@ -26,6 +26,7 @@
     --purple:#6B5CA5;
     --gray:#9AA1AC;
     --gold:#C79A3E;
+    --zoom:1;
   }
   *{box-sizing:border-box;}
   body{
@@ -73,22 +74,22 @@
   .toggle-btn.active{background:var(--blue); color:#fff;}
   .toggle-btn.deletebtn{border-color:var(--red); color:var(--red);}
   .toggle-btn.deletebtn.active{background:var(--red); color:#fff;}
-  .lockbadge{font-size:11px; color:var(--green); font-weight:700; display:flex; align-items:center; gap:3px;}
-  .lockbadge.locked{color:#9AA1AC;}
+  .lockbadge{font-size:11px; color:var(--green); font-weight:700; display:flex; align-items:center; gap:3px; cursor:pointer; border:1px solid transparent; border-radius:14px; padding:4px 9px;}
+  .lockbadge.locked{color:#4b4438; background:#fff; border-color:var(--line);}
   .legend{display:flex; gap:8px; flex-wrap:wrap; font-size:11px; margin-left:auto;}
   .legend span{display:flex; align-items:center; gap:4px;}
   .legend i{width:11px;height:11px;border-radius:3px; display:inline-block;}
 
   .tablewrap{overflow:auto; max-height:calc(100vh - 122px); position:relative;}
-  table{border-collapse:separate; border-spacing:0; font-size:12.5px; min-width:100%;}
+  table{border-collapse:separate; border-spacing:0; font-size:calc(12.5px * var(--zoom)); min-width:100%;}
   th,td{
     border-right:1px solid var(--line); border-bottom:1px solid var(--line);
     padding:0; text-align:center; white-space:nowrap;
   }
   th{background:#fff;}
-  .grouprow th{background:var(--ink2); color:#fff; font-size:11px; padding:4px 2px; font-weight:600;}
-  .badgerow th{background:#3A4658; color:#fff; font-size:11px; padding:4px 2px; font-variant-numeric:tabular-nums;}
-  .namerow th{background:#EFEAE0; font-size:12px; padding:5px 4px; font-weight:700; color:var(--ink);}
+  .grouprow th{background:var(--ink2); color:#fff; font-size:calc(11px * var(--zoom)); padding:calc(4px * var(--zoom)) calc(2px * var(--zoom)); font-weight:600;}
+  .badgerow th{background:#3A4658; color:#fff; font-size:calc(11px * var(--zoom)); padding:calc(4px * var(--zoom)) calc(2px * var(--zoom)); font-variant-numeric:tabular-nums;}
+  .namerow th{background:#EFEAE0; font-size:calc(12px * var(--zoom)); padding:calc(5px * var(--zoom)) calc(4px * var(--zoom)); font-weight:700; color:var(--ink);}
 
   /* sticky header rows (top offsets set by JS) */
   thead th{position:sticky; z-index:41;}
@@ -102,14 +103,14 @@
   td.col-sticky2{z-index:21;}
   th.colhead-side{writing-mode:horizontal-tb;}
 
-  td.datecell{width:34px; font-weight:700; font-variant-numeric:tabular-nums;}
-  td.wkcell{width:30px; font-weight:700;}
+  td.datecell{width:calc(34px * var(--zoom)); font-weight:700; font-variant-numeric:tabular-nums;}
+  td.wkcell{width:calc(30px * var(--zoom)); font-weight:700;}
   td.wkcell.sun{color:var(--red);}
   td.wkcell.sat{color:var(--blue);}
   tr.rowfull td.datecell, tr.rowfull td.wkcell{background:#FBE9E7;}
 
   td.cell{
-    width:46px; height:30px; cursor:pointer; user-select:none; font-weight:700;
+    width:calc(46px * var(--zoom)); height:calc(30px * var(--zoom)); cursor:pointer; user-select:none; font-weight:700;
     font-variant-numeric:tabular-nums; position:relative;
   }
   td.cell:hover{outline:2px solid var(--gold); outline-offset:-2px;}
@@ -123,16 +124,16 @@
   td.cell.type-增{background:#EDE8F5; color:var(--purple);}
   td.cell.empty{color:#C7C2B6;}
 
-  td.leavecount{width:44px; font-weight:800; font-variant-numeric:tabular-nums;}
+  td.leavecount{width:calc(44px * var(--zoom)); font-weight:800; font-variant-numeric:tabular-nums;}
   td.leavecount.ok{color:var(--green);}
   td.leavecount.zero{color:var(--red); background:#FBE1DE;}
   td.leavecount.neg{color:#fff; background:var(--red);}
-  th.leavecounthead{min-width:70px; font-size:11px; line-height:1.4; padding:6px 4px;}
-  th.leavecounthead b{font-size:15px; display:block; color:var(--gold);}
+  th.leavecounthead{min-width:calc(70px * var(--zoom)); font-size:calc(11px * var(--zoom)); line-height:1.4; padding:calc(6px * var(--zoom)) calc(4px * var(--zoom));}
+  th.leavecounthead b{font-size:calc(15px * var(--zoom)); display:block; color:var(--gold);}
 
   td.notecell{
-    width:110px; max-width:110px; text-align:left; vertical-align:middle; padding:5px 6px;
-    font-size:12px; cursor:pointer; white-space:normal; word-break:break-all; line-height:1.3;
+    width:calc(140px * var(--zoom)); max-width:calc(140px * var(--zoom)); text-align:left; vertical-align:middle; padding:calc(5px * var(--zoom)) calc(6px * var(--zoom));
+    font-size:calc(12px * var(--zoom)); cursor:pointer; white-space:normal; word-break:break-all; line-height:1.3;
   }
   td.notecell:hover{outline:2px solid var(--gold); outline-offset:-2px;}
   td.notecell.empty-note{color:#C7C2B6;}
@@ -151,6 +152,7 @@
     padding:9px 4px; border-radius:8px; border:1px solid var(--line); background:#fdfcf9; cursor:pointer; font-size:12.5px; font-weight:600;
   }
   .typegrid button.sel{border-color:var(--gold); background:#FBF2D8; box-shadow:0 0 0 2px #FBF2D8 inset;}
+  .typegrid button.locked-type{color:#B4AFA2; background:#F0EEE8; cursor:not-allowed;}
   .modal-actions{display:flex; gap:8px; margin-top:18px;}
   .modal-actions button{flex:1; padding:10px; border-radius:8px; border:none; cursor:pointer; font-weight:700; font-size:13px;}
   .btn-save{background:var(--ink); color:#fff;}
@@ -182,6 +184,19 @@
     0%,100%{opacity:1;}
     50%{opacity:.4;}
   }
+
+  .zoomctrl{
+    position:fixed; right:14px; bottom:18px; z-index:60;
+    background:rgba(27,36,48,.94); color:#fff; border-radius:24px;
+    padding:6px 8px; display:flex; align-items:center; gap:6px;
+    box-shadow:0 3px 12px rgba(0,0,0,.35); user-select:none;
+  }
+  .zoomctrl #zoomLabel{font-size:12px; min-width:36px; text-align:center; font-variant-numeric:tabular-nums;}
+  button.zoombtn{
+    width:30px; height:30px; border-radius:50%; border:none; background:var(--gold); color:#1B2430;
+    font-size:16px; font-weight:800; cursor:pointer; display:flex; align-items:center; justify-content:center;
+  }
+  button.zoombtn.zoomresetbtn{width:auto; border-radius:14px; padding:0 10px; font-size:11px; background:#3A4658; color:#fff;}
 </style>
 </head>
 <body>
@@ -202,6 +217,7 @@
       <label>目前操作人</label>
       <input id="currentUserInput" placeholder="請輸入姓名">
     </div>
+    <button class="iconbtn" id="checkUpdateBtn" title="手動檢查更新">🔄</button>
     <button class="iconbtn" id="logBtn" title="新增/刪除/修改紀錄">🕐</button>
     <button class="iconbtn" id="settingsBtn" title="設定">⚙</button>
   </div>
@@ -227,7 +243,7 @@
     <button class="toggle-btn deletebtn" id="vDeleteModeBtn">V 批次拖拉刪除</button>
   </div>
   <div class="grp">
-    <span class="lockbadge locked" id="adminLockBadge">🔒 一般權限</span>
+    <span class="lockbadge locked" id="adminLockBadge" title="點此輸入主管密碼解鎖">🔒 一般權限（點此解鎖）</span>
   </div>
   <div class="legend">
     <span><i style="background:#E4ECF7"></i>V輪休</span>
@@ -241,6 +257,13 @@
 </div>
 
 <div class="tablewrap" id="tablewrap"></div>
+
+<div class="zoomctrl" id="zoomCtrl">
+  <button class="zoombtn" id="zoomOutBtn" title="縮小，看到更多天數/人員">－</button>
+  <span id="zoomLabel">100%</span>
+  <button class="zoombtn" id="zoomInBtn" title="放大，看得更清楚">＋</button>
+  <button class="zoombtn zoomresetbtn" id="zoomResetBtn" title="回到100%">重置</button>
+</div>
 
 <!-- Cell edit modal -->
 <div class="overlay" id="cellOverlay">
@@ -507,8 +530,8 @@ let adminUnlocked = false;
 function updateAdminBadge(){
   const b = document.getElementById('adminLockBadge');
   if(!b) return;
-  if(adminUnlocked){ b.textContent = '🔓 主管權限（本次已解鎖）'; b.classList.remove('locked'); }
-  else{ b.textContent = '🔒 一般權限'; b.classList.add('locked'); }
+  if(adminUnlocked){ b.textContent = '🔓 主管權限（本次已解鎖）'; b.title='已解鎖'; b.classList.remove('locked'); }
+  else{ b.textContent = '🔒 一般權限（點此解鎖）'; b.title='點此輸入主管密碼解鎖'; b.classList.add('locked'); }
 }
 function requireAdmin(){
   if(adminUnlocked){ return true; }
@@ -517,6 +540,7 @@ function requireAdmin(){
   if(pwd===ADMIN_PASSWORD){
     adminUnlocked = true;
     updateAdminBadge();
+    if(document.getElementById('cellOverlay').classList.contains('show')) renderTypeGrid();
     return true;
   }
   alert('密碼錯誤，操作取消。');
@@ -740,7 +764,8 @@ function bindTableEvents(){
   if(manualTotalInput){
     manualTotalInput.addEventListener('click', (e)=> e.stopPropagation());
     manualTotalInput.addEventListener('focus', (e)=>{
-      if(!requireUser()){ e.target.blur(); }
+      if(!requireUser()){ e.target.blur(); return; }
+      if(!requireAdmin()){ e.target.blur(); }
     });
     manualTotalInput.addEventListener('input', (e)=>{
       currentMonthData().manualTotal = e.target.value;
@@ -833,25 +858,33 @@ function openCellModal(day, empId){
   slotEl.className = 'slotinfo' + (rem<=0 ? ' warn':'');
   slotEl.textContent = `本日剩餘可請假名額：${rem} 人（應上班 ${state.dailyRequired} 人）`;
 
-  const allTypes = ['V','公假','婚假','病假','喪假','休','換','增'];
-  const grid = document.getElementById('typeGrid');
-  grid.innerHTML = allTypes.map(t=>`<button data-t="${t}" class="${selectedType===t?'sel':''}">${t}</button>`).join('');
-  grid.querySelectorAll('button').forEach(b=>{
-    b.addEventListener('click', ()=>{
-      const t = b.dataset.t;
-      if((t==='V' || LEAVE_TYPES.includes(t)) && !requireAdmin()) return;
-      selectedType = t;
-      grid.querySelectorAll('button').forEach(x=>x.classList.remove('sel'));
-      b.classList.add('sel');
-      renderExtraField();
-    });
-  });
+  renderTypeGrid();
   renderExtraField();
 
   const meta = document.getElementById('metaLine');
   meta.textContent = cell ? `最後編輯：由 ${cell.editor||'未知'} 於 ${new Date(cell.ts).toLocaleString('zh-TW')}` : '尚無填寫紀錄';
 
   document.getElementById('cellOverlay').classList.add('show');
+}
+function renderTypeGrid(){
+  const allTypes = ['V','公假','婚假','病假','喪假','休','換','增'];
+  const grid = document.getElementById('typeGrid');
+  grid.innerHTML = allTypes.map(t=>{
+    const restricted = (t==='V' || LEAVE_TYPES.includes(t));
+    const locked = restricted && !adminUnlocked;
+    const cls = [selectedType===t?'sel':'', locked?'locked-type':''].filter(Boolean).join(' ');
+    return `<button data-t="${t}" class="${cls}">${locked?'🔒 ':''}${t}</button>`;
+  }).join('');
+  grid.querySelectorAll('button').forEach(b=>{
+    b.addEventListener('click', ()=>{
+      const t = b.dataset.t;
+      const restricted = (t==='V' || LEAVE_TYPES.includes(t));
+      if(restricted && !adminUnlocked) return; // 未解鎖：點了完全沒反應，不彈密碼框，避免誤觸連環跳窗
+      selectedType = t;
+      renderTypeGrid();
+      renderExtraField();
+    });
+  });
 }
 function renderExtraField(){
   const box = document.getElementById('extraField');
@@ -971,6 +1004,7 @@ function clearNote(){
 }
 
 /* ---------------- Settings modal ---------------- */
+document.getElementById('adminLockBadge').addEventListener('click', ()=>{ requireAdmin(); });
 document.getElementById('settingsBtn').addEventListener('click', ()=>{
   if(!requireAdmin()) return;
   openSettings();
@@ -1029,9 +1063,51 @@ function applySettings(){
   scheduleSave();
 }
 
+/* ---------------- 縮放（讓手機可像原生App一樣「縮小看到全部」，取代瀏覽器原生縮放） ---------------- */
+const ZOOM_MIN = 0.45, ZOOM_MAX = 1.6;
+let zoomLevel = 1;
+function setZoom(z){
+  zoomLevel = Math.min(ZOOM_MAX, Math.max(ZOOM_MIN, z));
+  document.documentElement.style.setProperty('--zoom', zoomLevel);
+  const label = document.getElementById('zoomLabel');
+  if(label) label.textContent = Math.round(zoomLevel*100)+'%';
+  fixStickyOffsets();
+}
+document.getElementById('zoomOutBtn').addEventListener('click', ()=> setZoom(zoomLevel - 0.1));
+document.getElementById('zoomInBtn').addEventListener('click', ()=> setZoom(zoomLevel + 0.1));
+document.getElementById('zoomResetBtn').addEventListener('click', ()=> setZoom(1));
+
+// 雙指縮放（pinch）：在表格區域用兩指開合即可縮小/放大，效果類似一般App
+(function setupPinchZoom(){
+  const wrap = document.getElementById('tablewrap');
+  let pinchStartDist = 0;
+  let pinchStartZoom = 1;
+  function dist(t1, t2){
+    const dx = t1.clientX - t2.clientX, dy = t1.clientY - t2.clientY;
+    return Math.sqrt(dx*dx + dy*dy);
+  }
+  wrap.addEventListener('touchstart', (e)=>{
+    if(e.touches.length===2){
+      pinchStartDist = dist(e.touches[0], e.touches[1]);
+      pinchStartZoom = zoomLevel;
+    }
+  }, {passive:true});
+  wrap.addEventListener('touchmove', (e)=>{
+    if(e.touches.length===2 && pinchStartDist>0){
+      e.preventDefault();
+      const d = dist(e.touches[0], e.touches[1]);
+      setZoom(pinchStartZoom * (d / pinchStartDist));
+    }
+  }, {passive:false});
+  wrap.addEventListener('touchend', (e)=>{
+    if(e.touches.length<2) pinchStartDist = 0;
+  }, {passive:true});
+})();
+
 /* ---------------- init ---------------- */
 render();
 updateAdminBadge();
+setZoom(1);
 
 /* ---------------- 自動偵測改版（GitHub 更新後自動提示，不用重新安裝/清快取） ---------------- */
 (function(){
@@ -1043,7 +1119,14 @@ updateAdminBadge();
     return location.origin + location.pathname; // 不含 query/hash，固定指向本頁面檔案本身
   }
   function getPageVersionTag(){
-    return fetch(selfUrl(), {method:'HEAD', cache:'no-store'})
+    // 用 GET + 時間戳打散快取金鑰，並明確要求不要用任何快取（含電腦版瀏覽器/中繼站快取），
+    // 確保拿到的是伺服器上「當下最新」的版本標記，而不是被快取住的舊回應。
+    const bustUrl = selfUrl() + '?_chk=' + Date.now();
+    return fetch(bustUrl, {
+      method:'GET',
+      cache:'no-store',
+      headers:{'Cache-Control':'no-cache, no-store, must-revalidate', 'Pragma':'no-cache'}
+    })
       .then(res => res.headers.get('etag') || res.headers.get('last-modified') || null)
       .catch(()=> null);
   }
@@ -1057,13 +1140,28 @@ updateAdminBadge();
       }
     });
   }
+  function manualCheck(){
+    if(checking) return;
+    checking = true;
+    getPageVersionTag().then(tag=>{
+      checking = false;
+      if(tag && baselineTag && tag !== baselineTag){
+        bannerEl.classList.add('show');
+      } else {
+        alert('目前已是最新版本，不需要更新。');
+      }
+    });
+  }
   bannerEl.addEventListener('click', ()=>{
     // 用帶時間戳的網址強制略過瀏覽器/桌面圖示的快取，抓最新版本
     location.href = selfUrl() + '?_r=' + Date.now();
   });
   getPageVersionTag().then(tag=>{ baselineTag = tag; });
-  setInterval(checkForUpdate, 3*60*1000); // 每 3 分鐘背景檢查一次
+  setInterval(checkForUpdate, 90*1000); // 每 90 秒背景檢查一次（電腦版/手機版一致）
   document.addEventListener('visibilitychange', ()=>{ if(document.visibilityState==='visible') checkForUpdate(); });
+  window.addEventListener('focus', checkForUpdate); // 電腦版切回分頁/視窗時也主動檢查一次
+  const checkBtn = document.getElementById('checkUpdateBtn');
+  if(checkBtn) checkBtn.addEventListener('click', manualCheck);
 })();
 </script>
 </body>
