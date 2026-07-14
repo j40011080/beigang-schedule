@@ -2,7 +2,7 @@
 <html lang="zh-Hant">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>雲林縣消防局第三大隊北港分隊 預定表</title>
 <link rel="manifest" href="manifest.json">
 <link rel="icon" type="image/png" sizes="512x512" href="icon-512.png">
@@ -71,6 +71,10 @@
     font-size:12px; cursor:pointer; font-weight:600;
   }
   .toggle-btn.active{background:var(--blue); color:#fff;}
+  .toggle-btn.deletebtn{border-color:var(--red); color:var(--red);}
+  .toggle-btn.deletebtn.active{background:var(--red); color:#fff;}
+  .lockbadge{font-size:11px; color:var(--green); font-weight:700; display:flex; align-items:center; gap:3px;}
+  .lockbadge.locked{color:#9AA1AC;}
   .legend{display:flex; gap:8px; flex-wrap:wrap; font-size:11px; margin-left:auto;}
   .legend span{display:flex; align-items:center; gap:4px;}
   .legend i{width:11px;height:11px;border-radius:3px; display:inline-block;}
@@ -127,7 +131,7 @@
   th.leavecounthead b{font-size:15px; display:block; color:var(--gold);}
 
   td.notecell{
-    width:90px; max-width:90px; text-align:left; vertical-align:middle; padding:5px 6px;
+    width:110px; max-width:110px; text-align:left; vertical-align:middle; padding:5px 6px;
     font-size:12px; cursor:pointer; white-space:normal; word-break:break-all; line-height:1.3;
   }
   td.notecell:hover{outline:2px solid var(--gold); outline-offset:-2px;}
@@ -218,6 +222,12 @@
     <button class="toggle-btn" id="vModeBtn">V 批次拖拉填入</button>
     <span>起始值</span>
     <input type="number" id="vStartInput" value="1" min="1">
+  </div>
+  <div class="grp">
+    <button class="toggle-btn deletebtn" id="vDeleteModeBtn">V 批次拖拉刪除</button>
+  </div>
+  <div class="grp">
+    <span class="lockbadge locked" id="adminLockBadge">🔒 一般權限</span>
   </div>
   <div class="legend">
     <span><i style="background:#E4ECF7"></i>V輪休</span>
@@ -464,6 +474,7 @@ const REQUEST_TYPES = ['休','換','增'];
 const WEEKDAYS = ['日','一','二','三','四','五','六'];
 
 let vDragMode = false;
+let vDeleteMode = false;
 let dragging = false;
 let dragVisited = [];
 let dragCounter = 1;
@@ -479,6 +490,7 @@ function currentMonthData(){
   const md = state.monthsData[key];
   if(!md.cells) md.cells = {};
   if(!md.notes) md.notes = {};
+  if(md.manualTotal===undefined) md.manualTotal = '';
   return md;
 }
 function ensureDay(day){ const md = currentMonthData(); if(!md.cells[day]) md.cells[day] = {}; }
@@ -489,6 +501,27 @@ function getNote(day){ return currentMonthData().notes[day] || {text:'', minus1:
 function setNoteData(day, data){ currentMonthData().notes[day] = data; }
 function clearNoteData(day){ delete currentMonthData().notes[day]; }
 
+/* ---------------- 主管權限 ---------------- */
+const ADMIN_PASSWORD = '7824316';
+let adminUnlocked = false;
+function updateAdminBadge(){
+  const b = document.getElementById('adminLockBadge');
+  if(!b) return;
+  if(adminUnlocked){ b.textContent = '🔓 主管權限（本次已解鎖）'; b.classList.remove('locked'); }
+  else{ b.textContent = '🔒 一般權限'; b.classList.add('locked'); }
+}
+function requireAdmin(){
+  if(adminUnlocked){ return true; }
+  const pwd = prompt('此操作（V／公假／病假／婚假／喪假 的新增或刪除，或設定）需要主管權限，請輸入密碼：');
+  if(pwd===null) return false;
+  if(pwd===ADMIN_PASSWORD){
+    adminUnlocked = true;
+    updateAdminBadge();
+    return true;
+  }
+  alert('密碼錯誤，操作取消。');
+  return false;
+}
 function requireUser(){
   const u = state.currentUser.trim();
   const input = document.getElementById('currentUserInput');
@@ -579,8 +612,7 @@ function render(){
   });
 
   const nDays = daysInMonth(state.rocYear, state.month);
-  let totalLeave = 0;
-  for(let d=1; d<=nDays; d++) totalLeave += unavailableCount(d);
+  const manualTotal = currentMonthData().manualTotal;
 
   let html = '<table><thead>';
   // row 1: group labels
@@ -592,7 +624,7 @@ function render(){
   // row 2: badge numbers (col-sticky2 labelled 人員番號; leave-count column shows monthly total)
   html += '<tr class="badgerow"><th class="col-sticky1"></th><th class="col-sticky2">人員番號</th>';
   emps.forEach(e=>{ html += `<th>${escapeHtml(e.badge)}</th>`; });
-  html += `<th style="font-size:10px;font-weight:400;">本月合計<br><b style="font-size:14px;color:var(--gold);">${totalLeave}</b></th><th></th></tr>`;
+  html += `<th style="font-size:10px;font-weight:400;">本月合計<br><input type="number" id="manualTotalInput" value="${escapeHtml(manualTotal)}" placeholder="輸入" style="width:46px;text-align:center;font-size:13px;font-weight:700;color:var(--gold);background:#2A3542;border:1px solid #56606f;border-radius:4px;padding:3px 0;"></th><th></th></tr>`;
 
   // row 3: 日期 / 姓名 labels + employee names
   html += '<tr class="namerow"><th class="col-sticky1">日期</th><th class="col-sticky2">姓名</th>';
@@ -655,31 +687,46 @@ function bindTableEvents(){
   const cells = document.querySelectorAll('td.cell');
   cells.forEach(td=>{
     td.addEventListener('click', ()=>{
-      if(vDragMode) return;
+      if(vDragMode || vDeleteMode) return;
       openCellModal(parseInt(td.dataset.day), td.dataset.emp);
     });
     td.addEventListener('mousedown', (e)=>{
-      if(!vDragMode) return;
+      if(!vDragMode && !vDeleteMode) return;
       if(!requireUser()) return;
       e.preventDefault();
       dragging = true; dragVisited = [];
-      dragCounter = parseInt(document.getElementById('vStartInput').value)||1;
-      applyDragV(td);
+      if(vDragMode){
+        dragCounter = parseInt(document.getElementById('vStartInput').value)||1;
+        applyDragV(td);
+      } else {
+        applyDragDelete(td);
+      }
     });
-    td.addEventListener('mouseenter', ()=>{ if(vDragMode && dragging) applyDragV(td); });
+    td.addEventListener('mouseenter', ()=>{
+      if(!dragging) return;
+      if(vDragMode) applyDragV(td);
+      else if(vDeleteMode) applyDragDelete(td);
+    });
     td.addEventListener('touchstart', (e)=>{
-      if(!vDragMode) return;
+      if(!vDragMode && !vDeleteMode) return;
       if(!requireUser()) return;
       dragging = true; dragVisited = [];
-      dragCounter = parseInt(document.getElementById('vStartInput').value)||1;
-      applyDragV(td);
+      if(vDragMode){
+        dragCounter = parseInt(document.getElementById('vStartInput').value)||1;
+        applyDragV(td);
+      } else {
+        applyDragDelete(td);
+      }
     });
     td.addEventListener('touchmove', (e)=>{
-      if(!vDragMode || !dragging) return;
+      if((!vDragMode && !vDeleteMode) || !dragging) return;
       e.preventDefault();
       const t = e.touches[0];
       const el = document.elementFromPoint(t.clientX, t.clientY);
-      if(el && el.classList.contains('cell')) applyDragV(el);
+      if(el && el.classList.contains('cell')){
+        if(vDragMode) applyDragV(el);
+        else if(vDeleteMode) applyDragDelete(el);
+      }
     }, {passive:false});
   });
   document.addEventListener('mouseup', endDrag);
@@ -688,6 +735,18 @@ function bindTableEvents(){
   document.querySelectorAll('td.notecell').forEach(td=>{
     td.addEventListener('click', ()=>{ openNoteModal(parseInt(td.dataset.day)); });
   });
+
+  const manualTotalInput = document.getElementById('manualTotalInput');
+  if(manualTotalInput){
+    manualTotalInput.addEventListener('click', (e)=> e.stopPropagation());
+    manualTotalInput.addEventListener('focus', (e)=>{
+      if(!requireUser()){ e.target.blur(); }
+    });
+    manualTotalInput.addEventListener('input', (e)=>{
+      currentMonthData().manualTotal = e.target.value;
+      scheduleSave();
+    });
+  }
 }
 function applyDragV(td){
   const key = td.dataset.day+'_'+td.dataset.emp;
@@ -704,14 +763,51 @@ function applyDragV(td){
   document.getElementById('vModeBtn').classList.add('active');
   scheduleSave();
 }
+function applyDragDelete(td){
+  const day = parseInt(td.dataset.day);
+  const empId = td.dataset.emp;
+  const key = day+'_'+empId;
+  if(dragVisited.includes(key)) return;
+  dragVisited.push(key);
+  const existing = getCell(day, empId);
+  if(!existing) return;
+  const emp = state.employees.find(e=>e.id===empId);
+  addLog(`【刪除(拖拉)】${state.month}月${day}日 ${emp?emp.name:empId} 的「${cellLabel(existing)}」被清除`);
+  clearCellData(day, empId);
+  render();
+  document.getElementById('vDeleteModeBtn').classList.add('active');
+  scheduleSave();
+}
 function endDrag(){ if(dragging){ dragging=false; dragVisited=[]; } }
 
 /* ---------------- V drag mode toggle ---------------- */
 document.getElementById('vModeBtn').addEventListener('click', ()=>{
-  if(!vDragMode && !requireUser()) return;
+  if(!vDragMode){
+    if(!requireUser()) return;
+    if(!requireAdmin()) return;
+    if(vDeleteMode){
+      vDeleteMode = false;
+      document.getElementById('vDeleteModeBtn').classList.remove('active');
+      document.getElementById('vDeleteModeBtn').textContent = 'V 批次拖拉刪除';
+    }
+  }
   vDragMode = !vDragMode;
   document.getElementById('vModeBtn').classList.toggle('active', vDragMode);
   document.getElementById('vModeBtn').textContent = vDragMode ? 'V 拖拉填入中（再按一次結束）' : 'V 批次拖拉填入';
+});
+document.getElementById('vDeleteModeBtn').addEventListener('click', ()=>{
+  if(!vDeleteMode){
+    if(!requireUser()) return;
+    if(!requireAdmin()) return;
+    if(vDragMode){
+      vDragMode = false;
+      document.getElementById('vModeBtn').classList.remove('active');
+      document.getElementById('vModeBtn').textContent = 'V 批次拖拉填入';
+    }
+  }
+  vDeleteMode = !vDeleteMode;
+  document.getElementById('vDeleteModeBtn').classList.toggle('active', vDeleteMode);
+  document.getElementById('vDeleteModeBtn').textContent = vDeleteMode ? 'V 拖拉刪除中（再按一次結束）' : 'V 批次拖拉刪除';
 });
 document.getElementById('currentUserInput').addEventListener('input', (e)=>{
   state.currentUser = e.target.value;
@@ -742,7 +838,9 @@ function openCellModal(day, empId){
   grid.innerHTML = allTypes.map(t=>`<button data-t="${t}" class="${selectedType===t?'sel':''}">${t}</button>`).join('');
   grid.querySelectorAll('button').forEach(b=>{
     b.addEventListener('click', ()=>{
-      selectedType = b.dataset.t;
+      const t = b.dataset.t;
+      if((t==='V' || LEAVE_TYPES.includes(t)) && !requireAdmin()) return;
+      selectedType = t;
       grid.querySelectorAll('button').forEach(x=>x.classList.remove('sel'));
       b.classList.add('sel');
       renderExtraField();
@@ -776,6 +874,7 @@ function saveCell(){
   if(!selectedType){ alert('請先選擇類別'); return; }
   const user = requireUser();
   if(!user) return;
+  if((selectedType==='V' || LEAVE_TYPES.includes(selectedType)) && !requireAdmin()) return;
 
   const rem = slotsRemaining(activeDay);
   const existing = getCell(activeDay, activeEmp);
@@ -812,6 +911,7 @@ function clearCell(){
   const user = requireUser();
   if(!user) return;
   const existing = getCell(activeDay, activeEmp);
+  if(existing && (existing.type==='V' || LEAVE_TYPES.includes(existing.type)) && !requireAdmin()) return;
   if(existing){
     const emp = state.employees.find(e=>e.id===activeEmp);
     const empName = emp ? emp.name : activeEmp;
@@ -871,7 +971,10 @@ function clearNote(){
 }
 
 /* ---------------- Settings modal ---------------- */
-document.getElementById('settingsBtn').addEventListener('click', openSettings);
+document.getElementById('settingsBtn').addEventListener('click', ()=>{
+  if(!requireAdmin()) return;
+  openSettings();
+});
 function openSettings(){
   document.getElementById('setYear').value = state.rocYear;
   document.getElementById('setMonth').value = state.month;
@@ -928,6 +1031,7 @@ function applySettings(){
 
 /* ---------------- init ---------------- */
 render();
+updateAdminBadge();
 
 /* ---------------- 自動偵測改版（GitHub 更新後自動提示，不用重新安裝/清快取） ---------------- */
 (function(){
