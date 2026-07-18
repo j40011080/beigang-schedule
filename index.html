@@ -220,6 +220,7 @@
       <label>目前操作人</label>
       <input id="currentUserInput" placeholder="請輸入姓名">
     </div>
+    <button class="iconbtn" id="exportExcelBtn" title="匯出Excel（格式對齊每月預定表，可直接複製貼上）">⬇️</button>
     <button class="iconbtn" id="checkUpdateBtn" title="手動檢查更新">🔄</button>
     <button class="iconbtn" id="logBtn" title="新增/刪除/修改紀錄">🕐</button>
     <button class="iconbtn" id="settingsBtn" title="設定">⚙</button>
@@ -353,6 +354,7 @@
 
 <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-database-compat.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <script>
 /* ---------------- Firebase 跨裝置同步 ---------------- */
 const firebaseConfig = {
@@ -526,6 +528,66 @@ function clearCellData(day, empId){ ensureDay(day); delete currentMonthData().ce
 function getNote(day){ return currentMonthData().notes[day] || {text:'', minus1:false}; }
 function setNoteData(day, data){ currentMonthData().notes[day] = data; }
 function clearNoteData(day){ delete currentMonthData().notes[day]; }
+
+/* ---------------- 匯出Excel（格式對齊「每月預定表」工作表，方便直接複製貼上） ---------------- */
+function exportToExcel(){
+  if(typeof XLSX === 'undefined'){
+    alert('匯出功能載入中或無法連線，請確認網路連線後再試一次。');
+    return;
+  }
+  const emps = state.employees;
+  const nDays = daysInMonth(state.rocYear, state.month);
+  const md = currentMonthData();
+  const title = `雲林縣消防局第三大隊北港分隊${state.rocYear}年${state.month}月預定表`;
+
+  const aoa = [];
+
+  // 第1列：標題（合併，從人員第一欄橫跨到備註欄，對齊每月預定表 C1:AL1 的合併方式）
+  const row1 = ['', '', title];
+  for(let i=1; i<emps.length; i++) row1.push('');
+  row1.push('', '');
+  aoa.push(row1);
+
+  // 第2列：人員番號
+  const row2 = ['', '人員番號'];
+  emps.forEach(e=> row2.push(e.badge || ''));
+  row2.push('請假人數', '備註');
+  aoa.push(row2);
+
+  // 第3列：日期／姓名 + 本月合計
+  const row3 = ['日期', '姓名'];
+  emps.forEach(e=> row3.push(e.name || ''));
+  row3.push(md.manualTotal===undefined||md.manualTotal===null ? '' : md.manualTotal, '');
+  aoa.push(row3);
+
+  // 第4列起：每日資料
+  for(let d=1; d<=nDays; d++){
+    const wk = weekdayOf(state.rocYear, state.month, d);
+    const row = [d, wk];
+    emps.forEach(e=>{
+      const cell = getCell(d, e.id);
+      row.push(cellLabel(cell));
+    });
+    row.push(slotsRemaining(d));
+    const note = getNote(d);
+    row.push(note.text || '');
+    aoa.push(row);
+  }
+
+  const ws = XLSX.utils.aoa_to_sheet(aoa);
+  const lastColIdx = 2 + emps.length + 1; // 備註欄的 0-based 欄位索引
+  ws['!merges'] = [ { s:{r:0,c:2}, e:{r:0, c:lastColIdx} } ];
+  const colWidths = [{wch:6},{wch:6}];
+  emps.forEach(()=> colWidths.push({wch:8}));
+  colWidths.push({wch:8},{wch:16});
+  ws['!cols'] = colWidths;
+
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, '每月預定表');
+  XLSX.writeFile(wb, `${title}.xlsx`);
+  addLog(`【匯出】已匯出 民國${state.rocYear}年${state.month}月 Excel 檔（每月預定表格式）`);
+}
+document.getElementById('exportExcelBtn').addEventListener('click', exportToExcel);
 
 /* ---------------- 主管權限 ---------------- */
 const ADMIN_PASSWORD = '7824316';
