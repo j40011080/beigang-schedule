@@ -51,11 +51,11 @@
   .userbox input:focus{border-bottom-color:var(--gold);}
   .userbox input.needuser{border-bottom-color:var(--red); animation:needuserpulse 1.4s infinite;}
   .userbox select{
-    background:#2A3542; border:none; border-bottom:1px solid #4C5A6B; color:#fff;
-    font-size:13px; max-width:120px; padding:2px 2px; outline:none;
+    background:#fff; border:1px solid #4C5A6B; border-radius:4px; color:#1a1a1a;
+    font-size:13px; max-width:130px; padding:3px 4px; outline:none;
   }
-  .userbox select:focus{border-bottom-color:var(--gold);}
-  .userbox select option{color:#000;}
+  .userbox select:focus{border-color:var(--gold);}
+  .userbox select option{color:#1a1a1a; background:#fff;}
   @keyframes needuserpulse{
     0%,100%{background:transparent;}
     50%{background:rgba(193,57,43,.28);}
