@@ -374,6 +374,10 @@ firebase.initializeApp(firebaseConfig);
 const db = firebase.database();
 const scheduleRef = db.ref('schedule/current');
 
+/* ---------------- 本機專屬設定：只存在這台裝置的瀏覽器（localStorage），不會同步給其他人 ---------------- */
+let localUserName = localStorage.getItem('bg_currentUserName') || '';
+let filterName = localStorage.getItem('bg_filterName') || '';
+
 let isApplyingRemote = false;   // true while we are writing a remote snapshot into local state
 let saveTimer = null;           // debounce handle
 let hasLoadedOnce = false;      // becomes true after first snapshot is applied
@@ -437,7 +441,7 @@ scheduleRef.on('value', (snapshot)=>{
 const LOG_MAX = 300;
 
 function addLog(text){
-  const user = (state.currentUser && state.currentUser.trim()) || '(未指定)';
+  const user = (localUserName && localUserName.trim()) || '(未指定)';
   if(!Array.isArray(state.changeLog)) state.changeLog = [];
   state.changeLog.unshift({ ts: Date.now(), user, text });
   if(state.changeLog.length > LOG_MAX) state.changeLog.length = LOG_MAX; // 只留最新300筆
@@ -467,7 +471,6 @@ let state = {
   month: 7,
   dailyRequired: 8,
   vStart: 1,
-  currentUser: "",
   employees: [
     {id:'e1',badge:'1',name:'陳思淵',group:'幹部',count:true},
     {id:'e2',badge:'2',name:'蘇建維',group:'幹部',count:true},
@@ -511,7 +514,6 @@ let vDeleteMode = false;
 let dragging = false;
 let dragVisited = [];
 let dragCounter = 1;
-let filterName = ''; // 篩選姓名：只是畫面顯示用，不影響實際資料，不需同步
 
 /* ---------------- Helpers ---------------- */
 function daysInMonth(rocYear, month){ return new Date(rocYear+1911, month, 0).getDate(); }
@@ -638,7 +640,7 @@ function requireAdmin(){
   return false;
 }
 function requireUser(){
-  const u = state.currentUser.trim();
+  const u = localUserName.trim();
   const input = document.getElementById('currentUserInput');
   if(!u){
     input.classList.add('needuser');
@@ -715,8 +717,8 @@ function render(){
   document.getElementById('dailyReqLabel').textContent = '每日應上班人數：'+state.dailyRequired+' 人（不含未勾選計入人力者，如役男）';
   document.getElementById('vStartInput').value = state.vStart;
   const userInputEl = document.getElementById('currentUserInput');
-  if(document.activeElement !== userInputEl) userInputEl.value = state.currentUser || '';
-  userInputEl.classList.toggle('needuser', !(state.currentUser||'').trim());
+  if(document.activeElement !== userInputEl) userInputEl.value = localUserName || '';
+  userInputEl.classList.toggle('needuser', !(localUserName||'').trim());
   const filterInputEl = document.getElementById('filterNameInput');
   if(document.activeElement !== filterInputEl) filterInputEl.value = filterName || '';
 
@@ -871,7 +873,7 @@ function applyDragV(td){
   const key = td.dataset.day+'_'+td.dataset.emp;
   if(dragVisited.includes(key)) return;
   dragVisited.push(key);
-  const user = state.currentUser.trim() || '(未指定)';
+  const user = localUserName.trim() || '(未指定)';
   setCellData(parseInt(td.dataset.day), td.dataset.emp, {type:'V', num:dragCounter, editor:user, ts:Date.now()});
   {
     const emp = state.employees.find(e=>e.id===td.dataset.emp);
@@ -929,11 +931,13 @@ document.getElementById('vDeleteModeBtn').addEventListener('click', ()=>{
   document.getElementById('vDeleteModeBtn').textContent = vDeleteMode ? 'V 拖拉刪除中（再按一次結束）' : 'V 批次拖拉刪除';
 });
 document.getElementById('currentUserInput').addEventListener('input', (e)=>{
-  state.currentUser = e.target.value;
+  localUserName = e.target.value;
+  localStorage.setItem('bg_currentUserName', localUserName);
   e.target.classList.toggle('needuser', !e.target.value.trim());
 });
 document.getElementById('filterNameInput').addEventListener('input', (e)=>{
   filterName = e.target.value;
+  localStorage.setItem('bg_filterName', filterName);
   render();
 });
 
