@@ -225,6 +225,7 @@
       <input id="filterNameInput" placeholder="輸入姓名，僅顯示該列">
     </div>
     <button class="iconbtn" id="exportExcelBtn" title="匯出Excel（格式對齊每月預定表，可直接複製貼上）">⬇️</button>
+    <button class="iconbtn" id="statsBtn" title="換休／增休統計">📊</button>
     <button class="iconbtn" id="checkUpdateBtn" title="手動檢查更新">🔄</button>
     <button class="iconbtn" id="logBtn" title="新增/刪除/修改紀錄">🕐</button>
     <button class="iconbtn" id="settingsBtn" title="設定">⚙</button>
@@ -238,6 +239,16 @@
     <h2>新增/刪除/修改紀錄</h2>
     <div class="modalsub">最新異動在最上面，紀錄會隨排休表一起同步到雲端（所有裝置共用），最多保留300筆，超過會自動刪除最舊的一筆以節省空間</div>
     <div id="logList" style="max-height:60vh; overflow-y:auto;"></div>
+  </div>
+</div>
+
+<!-- 換休／增休統計 modal -->
+<div class="overlay" id="statsOverlay">
+  <div class="modal" style="max-width:640px;">
+    <button class="closebtn" onclick="closeStats()">×</button>
+    <h2 id="statsTitle">換休／增休統計</h2>
+    <div class="modalsub">列出本月每個人填寫「換休」「增休」的日期（役男不列入）</div>
+    <div id="statsList" style="max-height:60vh; overflow-y:auto;"></div>
   </div>
 </div>
 
@@ -464,6 +475,41 @@ function renderLogList(){
 function openLog(){ renderLogList(); document.getElementById('logOverlay').classList.add('show'); }
 function closeLog(){ document.getElementById('logOverlay').classList.remove('show'); }
 document.getElementById('logBtn').addEventListener('click', openLog);
+
+/* ---------------- 換休／增休統計 ---------------- */
+function renderStatsList(){
+  document.getElementById('statsTitle').textContent = `換休／增休統計（${state.rocYear}年${state.month}月）`;
+  const box = document.getElementById('statsList');
+  const emps = state.employees.filter(e=> e.group !== '役男');
+  const nDays = daysInMonth(state.rocYear, state.month);
+
+  const rows = emps.map(e=>{
+    const items = [];
+    for(let d=1; d<=nDays; d++){
+      const cell = getCell(d, e.id);
+      if(cell && (cell.type==='換' || cell.type==='增')){
+        items.push(`${state.month}/${d} ${REQUEST_TYPE_LABELS[cell.type]}${cell.num!=null?cell.num:''}`);
+      }
+    }
+    return {e, items};
+  });
+
+  const hasAny = rows.some(r=>r.items.length>0);
+  if(!hasAny){ box.innerHTML = '<div style="padding:20px 0;color:#999;font-size:13px;">本月尚無換休／增休紀錄</div>'; return; }
+
+  box.innerHTML = rows.map(({e, items})=>{
+    const body = items.length
+      ? items.map(t=>`<span style="display:inline-block;background:#2A3542;border-radius:6px;padding:3px 8px;margin:2px 6px 2px 0;font-size:12px;">${escapeHtml(t)}</span>`).join('')
+      : '<span style="color:#777;font-size:12px;">（無）</span>';
+    return `<div style="padding:10px 0; border-bottom:1px solid var(--line);">
+      <div style="font-weight:700; margin-bottom:6px;">${escapeHtml(e.badge)}　${escapeHtml(e.name)}</div>
+      <div>${body}</div>
+    </div>`;
+  }).join('');
+}
+function openStats(){ renderStatsList(); document.getElementById('statsOverlay').classList.add('show'); }
+function closeStats(){ document.getElementById('statsOverlay').classList.remove('show'); }
+document.getElementById('statsBtn').addEventListener('click', openStats);
 
 /* ---------------- State (synced via Firebase Realtime Database) ---------------- */
 let state = {
