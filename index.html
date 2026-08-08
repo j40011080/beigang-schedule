@@ -582,8 +582,8 @@ function exportToExcel(){
     emps.forEach(e=>{
       const cell = getCell(d, e.id);
       let label = cellLabel(cell);
-      if(label === ''){
-        // 空白＝上班：主管固定標示「主管」，其餘依左到右順序編號 1,2,3...
+      if(label === '' && e.group !== '役男'){
+        // 空白＝上班：主管固定標示「主管」，其餘依左到右順序編號 1,2,3...（役男不列入編號）
         label = (e.id === managerEmpId) ? '主管' : String(seq++);
       }
       row.push(label);
