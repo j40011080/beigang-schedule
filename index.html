@@ -50,6 +50,12 @@
   }
   .userbox input:focus{border-bottom-color:var(--gold);}
   .userbox input.needuser{border-bottom-color:var(--red); animation:needuserpulse 1.4s infinite;}
+  .userbox select{
+    background:#2A3542; border:none; border-bottom:1px solid #4C5A6B; color:#fff;
+    font-size:13px; max-width:120px; padding:2px 2px; outline:none;
+  }
+  .userbox select:focus{border-bottom-color:var(--gold);}
+  .userbox select option{color:#000;}
   @keyframes needuserpulse{
     0%,100%{background:transparent;}
     50%{background:rgba(193,57,43,.28);}
@@ -222,7 +228,9 @@
     </div>
     <div class="userbox">
       <label>篩選姓名</label>
-      <input id="filterNameInput" placeholder="輸入姓名，僅顯示該列">
+      <select id="filterNameInput">
+        <option value="">顯示全部</option>
+      </select>
     </div>
     <button class="iconbtn" id="exportExcelBtn" title="匯出Excel（格式對齊每月預定表，可直接複製貼上）">⬇️</button>
     <button class="iconbtn" id="statsBtn" title="換休／增休統計">📊</button>
@@ -780,10 +788,14 @@ function render(){
   if(document.activeElement !== userInputEl) userInputEl.value = localUserName || '';
   userInputEl.classList.toggle('needuser', !(localUserName||'').trim());
   const filterInputEl = document.getElementById('filterNameInput');
-  if(document.activeElement !== filterInputEl) filterInputEl.value = filterName || '';
+  if(filterName && !state.employees.some(e=> e.id===filterName)){
+    filterName = ''; localStorage.setItem('bg_filterName', ''); // 舊版篩選值（姓名字串）不再相容，重置為顯示全部
+  }
+  filterInputEl.innerHTML = '<option value="">顯示全部</option>' +
+    state.employees.map(e=> `<option value="${e.id}">${escapeHtml(e.badge)} ${escapeHtml(e.name)}</option>`).join('');
+  filterInputEl.value = filterName || '';
 
-  const filterQ = (filterName||'').trim();
-  const emps = filterQ ? state.employees.filter(e=> e.name && e.name.includes(filterQ)) : state.employees;
+  const emps = filterName ? state.employees.filter(e=> e.id === filterName) : state.employees;
   const groups = [];
   emps.forEach(e=>{
     const last = groups[groups.length-1];
@@ -995,7 +1007,7 @@ document.getElementById('currentUserInput').addEventListener('input', (e)=>{
   localStorage.setItem('bg_currentUserName', localUserName);
   e.target.classList.toggle('needuser', !e.target.value.trim());
 });
-document.getElementById('filterNameInput').addEventListener('input', (e)=>{
+document.getElementById('filterNameInput').addEventListener('change', (e)=>{
   filterName = e.target.value;
   localStorage.setItem('bg_filterName', filterName);
   render();
