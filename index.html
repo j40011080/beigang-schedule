@@ -253,9 +253,9 @@
     <span><i style="background:#E4ECF7"></i>V輪休</span>
     <span><i style="background:#ECECEC"></i>公假</span>
     <span><i style="background:#EFE7F7"></i>婚/病/喪假</span>
-    <span><i style="background:#E6F0E7"></i>休</span>
-    <span><i style="background:#FBEEDA"></i>換</span>
-    <span><i style="background:#EDE8F5"></i>增</span>
+    <span><i style="background:#E6F0E7"></i>休假</span>
+    <span><i style="background:#FBEEDA"></i>換休</span>
+    <span><i style="background:#EDE8F5"></i>增休</span>
     <span><i style="background:#FDEFEA;border:1px solid #C1392B"></i>備註含支援(-1)</span>
   </div>
 </div>
@@ -499,6 +499,7 @@ let state = {
 
 const LEAVE_TYPES = ['公假','婚假','病假','喪假'];
 const REQUEST_TYPES = ['休','換','增'];
+const REQUEST_TYPE_LABELS = {'休':'休假','換':'換休','增':'增休'};
 const WEEKDAYS = ['日','一','二','三','四','五','六'];
 
 let vDragMode = false;
@@ -564,10 +565,30 @@ function exportToExcel(){
   for(let d=1; d<=nDays; d++){
     const wk = weekdayOf(state.rocYear, state.month, d);
     const row = [d, wk];
+
+    // 找出當天「幹部」中番號最小且空白（上班）的人，設為主管
+    let managerEmpId = null, managerBadge = Infinity;
+    emps.forEach(e=>{
+      if(e.group === '幹部'){
+        const label = cellLabel(getCell(d, e.id));
+        if(label === ''){
+          const b = parseInt(e.badge, 10);
+          if(!isNaN(b) && b < managerBadge){ managerBadge = b; managerEmpId = e.id; }
+        }
+      }
+    });
+
+    let seq = 1;
     emps.forEach(e=>{
       const cell = getCell(d, e.id);
-      row.push(cellLabel(cell));
+      let label = cellLabel(cell);
+      if(label === ''){
+        // 空白＝上班：主管固定標示「主管」，其餘依左到右順序編號 1,2,3...
+        label = (e.id === managerEmpId) ? '主管' : String(seq++);
+      }
+      row.push(label);
     });
+
     row.push(slotsRemaining(d));
     const note = getNote(d);
     row.push(note.text || '');
@@ -672,7 +693,7 @@ function cellLabel(cell){
   if(!cell) return '';
   if(cell.type==='V') return 'V'+cell.num;
   if(LEAVE_TYPES.includes(cell.type)) return cell.type + (cell.num?cell.num:'');
-  if(REQUEST_TYPES.includes(cell.type)) return cell.type + cell.num;
+  if(REQUEST_TYPES.includes(cell.type)) return (REQUEST_TYPE_LABELS[cell.type]||cell.type) + cell.num;
   return '';
 }
 function cellClass(cell){
@@ -938,7 +959,7 @@ function renderTypeGrid(){
     const restricted = (t==='V' || LEAVE_TYPES.includes(t));
     const locked = restricted && !adminUnlocked;
     const cls = [selectedType===t?'sel':'', locked?'locked-type':''].filter(Boolean).join(' ');
-    return `<button data-t="${t}" class="${cls}">${locked?'🔒 ':''}${t}</button>`;
+    return `<button data-t="${t}" class="${cls}">${locked?'🔒 ':''}${REQUEST_TYPE_LABELS[t]||t}</button>`;
   }).join('');
   grid.querySelectorAll('button').forEach(b=>{
     b.addEventListener('click', ()=>{
@@ -978,7 +999,7 @@ function saveCell(){
   const existing = getCell(activeDay, activeEmp);
   const isNewRequest = REQUEST_TYPES.includes(selectedType) && (!existing || existing.type!==selectedType);
   if(isNewRequest && rem<=0){
-    const ok = confirm(`本日（${state.month}月${activeDay}日）剩餘可請假名額為 ${rem}，是否仍要新增「${selectedType}」？`);
+    const ok = confirm(`本日（${state.month}月${activeDay}日）剩餘可請假名額為 ${rem}，是否仍要新增「${REQUEST_TYPE_LABELS[selectedType]||selectedType}」？`);
     if(!ok) return;
   }
 
