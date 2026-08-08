@@ -220,6 +220,10 @@
       <label>目前操作人</label>
       <input id="currentUserInput" placeholder="請輸入姓名">
     </div>
+    <div class="userbox">
+      <label>篩選姓名</label>
+      <input id="filterNameInput" placeholder="輸入姓名，僅顯示該列">
+    </div>
     <button class="iconbtn" id="exportExcelBtn" title="匯出Excel（格式對齊每月預定表，可直接複製貼上）">⬇️</button>
     <button class="iconbtn" id="checkUpdateBtn" title="手動檢查更新">🔄</button>
     <button class="iconbtn" id="logBtn" title="新增/刪除/修改紀錄">🕐</button>
@@ -507,6 +511,7 @@ let vDeleteMode = false;
 let dragging = false;
 let dragVisited = [];
 let dragCounter = 1;
+let filterName = ''; // 篩選姓名：只是畫面顯示用，不影響實際資料，不需同步
 
 /* ---------------- Helpers ---------------- */
 function daysInMonth(rocYear, month){ return new Date(rocYear+1911, month, 0).getDate(); }
@@ -712,8 +717,11 @@ function render(){
   const userInputEl = document.getElementById('currentUserInput');
   if(document.activeElement !== userInputEl) userInputEl.value = state.currentUser || '';
   userInputEl.classList.toggle('needuser', !(state.currentUser||'').trim());
+  const filterInputEl = document.getElementById('filterNameInput');
+  if(document.activeElement !== filterInputEl) filterInputEl.value = filterName || '';
 
-  const emps = state.employees;
+  const filterQ = (filterName||'').trim();
+  const emps = filterQ ? state.employees.filter(e=> e.name && e.name.includes(filterQ)) : state.employees;
   const groups = [];
   emps.forEach(e=>{
     const last = groups[groups.length-1];
@@ -923,6 +931,10 @@ document.getElementById('vDeleteModeBtn').addEventListener('click', ()=>{
 document.getElementById('currentUserInput').addEventListener('input', (e)=>{
   state.currentUser = e.target.value;
   e.target.classList.toggle('needuser', !e.target.value.trim());
+});
+document.getElementById('filterNameInput').addEventListener('input', (e)=>{
+  filterName = e.target.value;
+  render();
 });
 
 /* ---------------- Cell modal ---------------- */
