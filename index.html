@@ -248,6 +248,11 @@
     <button class="closebtn" onclick="closeStats()">×</button>
     <h2 id="statsTitle">換休／增休統計</h2>
     <div class="modalsub">依日期列出本月每天有誰填寫「換休」「增休」（役男不列入）</div>
+    <div style="display:flex; gap:8px; margin-bottom:14px;">
+      <button class="toggle-btn statsfilterbtn" data-f="all">全部</button>
+      <button class="toggle-btn statsfilterbtn" data-f="換">只看換休</button>
+      <button class="toggle-btn statsfilterbtn" data-f="增">只看增休</button>
+    </div>
     <div id="statsList" style="max-height:60vh; overflow-y:auto;"></div>
   </div>
 </div>
@@ -477,8 +482,10 @@ function closeLog(){ document.getElementById('logOverlay').classList.remove('sho
 document.getElementById('logBtn').addEventListener('click', openLog);
 
 /* ---------------- 換休／增休統計 ---------------- */
+let statsFilter = 'all'; // 'all' | '換' | '增'
 function renderStatsList(){
   document.getElementById('statsTitle').textContent = `換休／增休統計（${state.rocYear}年${state.month}月）`;
+  document.querySelectorAll('.statsfilterbtn').forEach(b=> b.classList.toggle('active', b.dataset.f===statsFilter));
   const box = document.getElementById('statsList');
   const emps = state.employees.filter(e=> e.group !== '役男');
   const nDays = daysInMonth(state.rocYear, state.month);
@@ -489,20 +496,21 @@ function renderStatsList(){
     emps.forEach(e=>{
       const cell = getCell(d, e.id);
       if(cell && (cell.type==='換' || cell.type==='增')){
+        if(statsFilter!=='all' && cell.type!==statsFilter) return;
         const bg = cell.type==='換' ? '#FBEEDA' : '#EDE8F5';
         const color = cell.type==='換' ? 'var(--amber)' : 'var(--purple)';
         const text = `${e.badge} ${e.name} ${REQUEST_TYPE_LABELS[cell.type]}${cell.num!=null?cell.num:''}`;
-        items.push(`<span style="display:inline-block;background:${bg};color:${color};border-radius:6px;padding:3px 8px;margin:2px 6px 2px 0;font-size:12px;font-weight:700;">${escapeHtml(text)}</span>`);
+        items.push(`<span style="display:inline-block;background:${bg};color:${color};border-radius:8px;padding:6px 12px;margin:3px 8px 3px 0;font-size:16px;font-weight:700;">${escapeHtml(text)}</span>`);
       }
     });
     if(items.length) days.push({d, wk:weekdayOf(state.rocYear, state.month, d), items});
   }
 
-  if(days.length===0){ box.innerHTML = '<div style="padding:20px 0;color:#999;font-size:13px;">本月尚無換休／增休紀錄</div>'; return; }
+  if(days.length===0){ box.innerHTML = '<div style="padding:20px 0;color:#999;font-size:15px;">本月尚無符合條件的紀錄</div>'; return; }
 
   box.innerHTML = days.map(({d, wk, items})=>{
-    return `<div style="padding:10px 0; border-bottom:1px solid var(--line);">
-      <div style="font-weight:700; margin-bottom:6px;">${state.month}月${d}日（${wk}）</div>
+    return `<div style="padding:12px 0; border-bottom:1px solid var(--line);">
+      <div style="font-weight:700; font-size:17px; margin-bottom:8px;">${state.month}月${d}日（${wk}）</div>
       <div>${items.join('')}</div>
     </div>`;
   }).join('');
@@ -510,6 +518,12 @@ function renderStatsList(){
 function openStats(){ renderStatsList(); document.getElementById('statsOverlay').classList.add('show'); }
 function closeStats(){ document.getElementById('statsOverlay').classList.remove('show'); }
 document.getElementById('statsBtn').addEventListener('click', openStats);
+document.querySelectorAll('.statsfilterbtn').forEach(b=>{
+  b.addEventListener('click', ()=>{
+    statsFilter = b.dataset.f;
+    renderStatsList();
+  });
+});
 
 /* ---------------- State (synced via Firebase Realtime Database) ---------------- */
 let state = {
