@@ -967,17 +967,23 @@ function openCellModal(day, empId){
 function renderTypeGrid(){
   const allTypes = ['V','公假','婚假','病假','喪假','休','換','增'];
   const grid = document.getElementById('typeGrid');
+  const rem = slotsRemaining(activeDay);
+  const existingCell = getCell(activeDay, activeEmp);
   grid.innerHTML = allTypes.map(t=>{
     const restricted = (t==='V' || LEAVE_TYPES.includes(t));
-    const locked = restricted && !adminUnlocked;
+    const full = REQUEST_TYPES.includes(t) && rem<=0 && (!existingCell || existingCell.type!==t);
+    const locked = (restricted && !adminUnlocked) || full;
     const cls = [selectedType===t?'sel':'', locked?'locked-type':''].filter(Boolean).join(' ');
-    return `<button data-t="${t}" class="${cls}">${locked?'🔒 ':''}${REQUEST_TYPE_LABELS[t]||t}</button>`;
+    const label = full ? `🔒 ${REQUEST_TYPE_LABELS[t]||t}（已額滿）` : `${locked?'🔒 ':''}${REQUEST_TYPE_LABELS[t]||t}`;
+    return `<button data-t="${t}" class="${cls}" ${full?'title="本日請假名額已滿，無法再新增"':''}>${label}</button>`;
   }).join('');
   grid.querySelectorAll('button').forEach(b=>{
     b.addEventListener('click', ()=>{
       const t = b.dataset.t;
       const restricted = (t==='V' || LEAVE_TYPES.includes(t));
       if(restricted && !adminUnlocked) return; // 未解鎖：點了完全沒反應，不彈密碼框，避免誤觸連環跳窗
+      const full = REQUEST_TYPES.includes(t) && rem<=0 && (!existingCell || existingCell.type!==t);
+      if(full){ alert(`本日（${state.month}月${activeDay}日）請假名額已滿（剩餘 ${rem} 人），無法再新增「${REQUEST_TYPE_LABELS[t]||t}」。`); return; }
       selectedType = t;
       renderTypeGrid();
       renderExtraField();
@@ -1011,8 +1017,8 @@ function saveCell(){
   const existing = getCell(activeDay, activeEmp);
   const isNewRequest = REQUEST_TYPES.includes(selectedType) && (!existing || existing.type!==selectedType);
   if(isNewRequest && rem<=0){
-    const ok = confirm(`本日（${state.month}月${activeDay}日）剩餘可請假名額為 ${rem}，是否仍要新增「${REQUEST_TYPE_LABELS[selectedType]||selectedType}」？`);
-    if(!ok) return;
+    alert(`本日（${state.month}月${activeDay}日）請假名額已滿（剩餘 ${rem} 人），無法再新增「${REQUEST_TYPE_LABELS[selectedType]||selectedType}」。`);
+    return;
   }
 
   let num = null;
