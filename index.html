@@ -255,11 +255,16 @@
   <div class="modal" style="max-width:640px;">
     <button class="closebtn" onclick="closeStats()">×</button>
     <h2 id="statsTitle">換休／增休統計</h2>
-    <div class="modalsub">依日期列出本月每天有誰填寫「換休」「增休」（役男不列入）</div>
-    <div style="display:flex; gap:8px; margin-bottom:14px;">
-      <button class="toggle-btn statsfilterbtn" data-f="all">全部</button>
-      <button class="toggle-btn statsfilterbtn" data-f="換">只看換休</button>
-      <button class="toggle-btn statsfilterbtn" data-f="增">只看增休</button>
+    <div class="modalsub" id="statsSub">依日期列出本月每天有誰填寫「換休」「增休」（役男不列入）</div>
+    <div style="display:flex; gap:8px; margin-bottom:14px; flex-wrap:wrap; align-items:center;">
+      <select id="statsEmpSelect" style="padding:6px 8px; border-radius:6px; border:1px solid var(--line); font-size:13px;">
+        <option value="">依日期看全部（換休／增休）</option>
+      </select>
+      <span id="statsFilterBtns" style="display:flex; gap:8px;">
+        <button class="toggle-btn statsfilterbtn" data-f="all">全部</button>
+        <button class="toggle-btn statsfilterbtn" data-f="換">只看換休</button>
+        <button class="toggle-btn statsfilterbtn" data-f="增">只看增休</button>
+      </span>
     </div>
     <div id="statsList" style="max-height:60vh; overflow-y:auto;"></div>
   </div>
@@ -490,11 +495,57 @@ function closeLog(){ document.getElementById('logOverlay').classList.remove('sho
 document.getElementById('logBtn').addEventListener('click', openLog);
 
 /* ---------------- 換休／增休統計 ---------------- */
-let statsFilter = 'all'; // 'all' | '換' | '增'
+let statsFilter = 'all'; // 'all' | '換' | '增'（僅用於「依日期看全部」模式）
+let statsEmpId = '';     // 選了特定人員時，改顯示該人本月所有紀錄（不含V）
+
+const LEAVE_TAG_STYLE = {
+  '休': {bg:'#E6F0E7', color:'var(--green)'},
+  '換': {bg:'#FBEEDA', color:'var(--amber)'},
+  '增': {bg:'#EDE8F5', color:'var(--purple)'},
+  '公假': {bg:'#ECECEC', color:'#555'},
+  '婚假': {bg:'#EFE7F7', color:'var(--purple)'},
+  '病假': {bg:'#EFE7F7', color:'var(--purple)'},
+  '喪假': {bg:'#EFE7F7', color:'var(--purple)'},
+};
+function statsTag(cell){
+  const style = LEAVE_TAG_STYLE[cell.type] || {bg:'#ECECEC', color:'#555'};
+  const label = REQUEST_TYPE_LABELS[cell.type] || cell.type;
+  const text = `${label}${cell.num!=null && cell.num!=='' ? cell.num : ''}`;
+  return `<span style="display:inline-block;background:${style.bg};color:${style.color};border-radius:8px;padding:6px 12px;margin:3px 8px 3px 0;font-size:16px;font-weight:700;">${escapeHtml(text)}</span>`;
+}
+
 function renderStatsList(){
-  document.getElementById('statsTitle').textContent = `換休／增休統計（${state.rocYear}年${state.month}月）`;
-  document.querySelectorAll('.statsfilterbtn').forEach(b=> b.classList.toggle('active', b.dataset.f===statsFilter));
   const box = document.getElementById('statsList');
+  document.getElementById('statsEmpSelect').innerHTML = '<option value="">依日期看全部（換休／增休）</option>' +
+    state.employees.map(e=> `<option value="${e.id}">${escapeHtml(e.badge)} ${escapeHtml(e.name)}</option>`).join('');
+  document.getElementById('statsEmpSelect').value = statsEmpId;
+  document.getElementById('statsFilterBtns').style.display = statsEmpId ? 'none' : 'flex';
+
+  if(statsEmpId){
+    const emp = state.employees.find(e=> e.id===statsEmpId);
+    document.getElementById('statsTitle').textContent = `${emp.badge} ${emp.name} 本月請假紀錄`;
+    document.getElementById('statsSub').textContent = '列出本月所有休假／換休／增休／公假／婚假／病假／喪假紀錄（不含V）';
+
+    const nDays = daysInMonth(state.rocYear, state.month);
+    const rows = [];
+    for(let d=1; d<=nDays; d++){
+      const cell = getCell(d, emp.id);
+      if(!cell || cell.type==='V') continue;
+      rows.push({d, wk:weekdayOf(state.rocYear, state.month, d), cell});
+    }
+    if(rows.length===0){ box.innerHTML = '<div style="padding:20px 0;color:#999;font-size:15px;">本月尚無相關紀錄</div>'; return; }
+    box.innerHTML = rows.map(({d, wk, cell})=>{
+      return `<div style="padding:12px 0; border-bottom:1px solid var(--line);">
+        <div style="font-weight:700; font-size:17px; margin-bottom:8px;">${state.month}月${d}日（${wk}）</div>
+        <div>${statsTag(cell)}</div>
+      </div>`;
+    }).join('');
+    return;
+  }
+
+  document.getElementById('statsTitle').textContent = `換休／增休統計（${state.rocYear}年${state.month}月）`;
+  document.getElementById('statsSub').textContent = '依日期列出本月每天有誰填寫「換休」「增休」（役男不列入）';
+  document.querySelectorAll('.statsfilterbtn').forEach(b=> b.classList.toggle('active', b.dataset.f===statsFilter));
   const emps = state.employees.filter(e=> e.group !== '役男');
   const nDays = daysInMonth(state.rocYear, state.month);
 
@@ -505,10 +556,7 @@ function renderStatsList(){
       const cell = getCell(d, e.id);
       if(cell && (cell.type==='換' || cell.type==='增')){
         if(statsFilter!=='all' && cell.type!==statsFilter) return;
-        const bg = cell.type==='換' ? '#FBEEDA' : '#EDE8F5';
-        const color = cell.type==='換' ? 'var(--amber)' : 'var(--purple)';
-        const text = `${e.badge} ${e.name} ${REQUEST_TYPE_LABELS[cell.type]}${cell.num!=null?cell.num:''}`;
-        items.push(`<span style="display:inline-block;background:${bg};color:${color};border-radius:8px;padding:6px 12px;margin:3px 8px 3px 0;font-size:16px;font-weight:700;">${escapeHtml(text)}</span>`);
+        items.push(`${e.badge} ${e.name} ${statsTag(cell)}`);
       }
     });
     if(items.length) days.push({d, wk:weekdayOf(state.rocYear, state.month, d), items});
@@ -531,6 +579,10 @@ document.querySelectorAll('.statsfilterbtn').forEach(b=>{
     statsFilter = b.dataset.f;
     renderStatsList();
   });
+});
+document.getElementById('statsEmpSelect').addEventListener('change', (e)=>{
+  statsEmpId = e.target.value;
+  renderStatsList();
 });
 
 /* ---------------- State (synced via Firebase Realtime Database) ---------------- */
