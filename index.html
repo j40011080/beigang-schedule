@@ -716,7 +716,7 @@ function exportToExcel(){
   // 第3列：日期／姓名 + 本月合計
   const row3 = ['日期', '姓名'];
   emps.forEach(e=> row3.push(e.name || ''));
-  row3.push(md.manualTotal===undefined||md.manualTotal===null ? '' : md.manualTotal, '');
+  row3.push(monthlyLeaveTotal(), '');
   aoa.push(row3);
 
   // 第4列起：每日資料
@@ -1050,6 +1050,13 @@ function slotsRemaining(day){
   const base = available - state.dailyRequired;
   return base - requestUsed(day);
 }
+// 本月「請假人數」合計＝下方每日 leavecount 欄位（slotsRemaining）加總，自動計算，不再手動輸入
+function monthlyLeaveTotal(){
+  const nDays = daysInMonth(state.rocYear, state.month);
+  let sum = 0;
+  for(let d=1; d<=nDays; d++) sum += slotsRemaining(d);
+  return sum;
+}
 // 休/換/增 三種類型共用同一組編號：編號 = 當天目前已存在的（休+換+增）筆數 + 1
 // 這樣可以在刪除某筆後，下一筆新增自動遞補空出來的號碼，而不是一直往上累加
 function requestCountForDay(day, excludeEmpId){
@@ -1106,7 +1113,7 @@ function render(){
   });
 
   const nDays = daysInMonth(state.rocYear, state.month);
-  const manualTotal = currentMonthData().manualTotal;
+  const monthTotal = monthlyLeaveTotal();
 
   let html = '<table><thead>';
   // row 1: group labels
@@ -1118,7 +1125,7 @@ function render(){
   // row 2: badge numbers (col-sticky2 labelled 人員番號; leave-count column shows monthly total)
   html += '<tr class="badgerow"><th class="col-sticky1"></th><th class="col-sticky2">人員番號</th>';
   emps.forEach(e=>{ html += `<th>${escapeHtml(e.badge)}</th>`; });
-  html += `<th style="font-size:10px;font-weight:400;">本月合計<br><input type="number" id="manualTotalInput" value="${escapeHtml(manualTotal)}" placeholder="輸入" style="width:46px;text-align:center;font-size:13px;font-weight:700;color:var(--gold);background:#2A3542;border:1px solid #56606f;border-radius:4px;padding:3px 0;"></th><th></th></tr>`;
+  html += `<th style="font-size:10px;font-weight:400;">本月合計<br><b style="display:inline-block;margin-top:3px;font-size:15px;font-weight:700;color:var(--gold);">${monthTotal}</b></th><th></th></tr>`;
 
   // row 3: 日期 / 姓名 labels + employee names
   html += '<tr class="namerow"><th class="col-sticky1">日期</th><th class="col-sticky2">姓名</th>';
@@ -1230,18 +1237,6 @@ function bindTableEvents(){
     td.addEventListener('click', ()=>{ openNoteModal(parseInt(td.dataset.day)); });
   });
 
-  const manualTotalInput = document.getElementById('manualTotalInput');
-  if(manualTotalInput){
-    manualTotalInput.addEventListener('click', (e)=> e.stopPropagation());
-    manualTotalInput.addEventListener('focus', (e)=>{
-      if(!requireUser()){ e.target.blur(); return; }
-      if(!requireAdmin()){ e.target.blur(); }
-    });
-    manualTotalInput.addEventListener('input', (e)=>{
-      currentMonthData().manualTotal = e.target.value;
-      scheduleSave();
-    });
-  }
 }
 function applyDragV(td){
   const key = td.dataset.day+'_'+td.dataset.emp;
