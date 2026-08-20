@@ -233,6 +233,7 @@
       </select>
     </div>
     <button class="iconbtn" id="exportExcelBtn" title="匯出Excel（格式對齊每月預定表，可直接複製貼上）">⬇️</button>
+    <button class="iconbtn" id="importExcelBtn" title="匯入Excel（讀取「每月預定表」工作表，可上傳.xlsx/.xlsm或.zip壓縮檔）">⬆️</button>
     <button class="iconbtn" id="statsBtn" title="換休／增休統計">📊</button>
     <button class="iconbtn" id="checkUpdateBtn" title="手動檢查更新">🔄</button>
     <button class="iconbtn" id="logBtn" title="新增/刪除/修改紀錄">🕐</button>
@@ -385,9 +386,39 @@
   </div>
 </div>
 
+<!-- 匯入Excel modal -->
+<div class="overlay" id="importOverlay">
+  <div class="modal" style="max-width:520px;">
+    <button class="closebtn" onclick="closeImportModal()">×</button>
+    <h2>匯入 Excel</h2>
+    <div class="modalsub">請上傳含有「每月預定表」工作表的檔案，可直接上傳 .xlsx／.xlsm，也可以上傳整包 .zip 壓縮檔（會自動找出裡面的 Excel 檔）。欄位比對以「番號」為準，姓名文字不同也沒關係。</div>
+
+    <input type="file" id="importFileInput" accept=".xlsx,.xlsm,.zip">
+    <div id="importStatus" style="font-size:12.5px; color:#6b6558; margin-top:10px; line-height:1.6;">請選擇要匯入的檔案</div>
+
+    <div class="settingsgrid" style="margin-top:14px;">
+      <div>
+        <label>匯入到民國幾年</label>
+        <input type="number" id="importYear" value="115">
+      </div>
+      <div>
+        <label>匯入到幾月</label>
+        <input type="number" id="importMonth" value="7" min="1" max="12">
+      </div>
+    </div>
+    <div class="hint">預設會自動從檔案標題判斷年月，若判斷錯誤或想匯入到別的年月，可自行修改上面的年/月。已存在的天數資料會被匯入內容覆蓋，其餘天數不受影響。</div>
+
+    <div class="modal-actions">
+      <button class="btn-cancel" onclick="closeImportModal()">取消</button>
+      <button class="btn-save" id="doImportBtn" disabled>開始匯入</button>
+    </div>
+  </div>
+</div>
+
 <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-database-compat.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
 <script>
 /* ---------------- Firebase 跨裝置同步 ---------------- */
 const firebaseConfig = {
@@ -736,6 +767,225 @@ function exportToExcel(){
   addLog(`【匯出】已匯出 民國${state.rocYear}年${state.month}月 Excel 檔（每月預定表格式）`);
 }
 document.getElementById('exportExcelBtn').addEventListener('click', exportToExcel);
+
+/* ---------------- 匯入Excel（讀取「每月預定表」工作表，支援.xlsx/.xlsm或包著它的.zip） ---------------- */
+let importParsed = null; // 解析後的暫存結果，按「開始匯入」才會真的寫入 state
+
+function openImportModal(){
+  if(!requireUser()) return;
+  if(!requireAdmin()) return; // 會寫入 V／請假 等資料，比照其他敏感操作需要主管權限
+  importParsed = null;
+  document.getElementById('importFileInput').value = '';
+  document.getElementById('importStatus').textContent = '請選擇要匯入的檔案';
+  document.getElementById('importYear').value = state.rocYear;
+  document.getElementById('importMonth').value = state.month;
+  document.getElementById('doImportBtn').disabled = true;
+  document.getElementById('importOverlay').classList.add('show');
+}
+function closeImportModal(){
+  document.getElementById('importOverlay').classList.remove('show');
+}
+document.getElementById('importExcelBtn').addEventListener('click', openImportModal);
+
+async function handleImportFileChange(e){
+  const file = e.target.files[0];
+  const statusEl = document.getElementById('importStatus');
+  const doBtn = document.getElementById('doImportBtn');
+  doBtn.disabled = true;
+  importParsed = null;
+  if(!file) return;
+
+  if(typeof XLSX === 'undefined'){
+    statusEl.textContent = '匯入功能需要的套件載入中或無法連線，請確認網路連線後再試一次。';
+    return;
+  }
+  statusEl.textContent = '讀取中…';
+  try{
+    let arrayBuffer;
+    const name = file.name.toLowerCase();
+    if(name.endsWith('.zip')){
+      if(typeof JSZip === 'undefined'){
+        statusEl.textContent = '匯入功能需要的壓縮檔解析套件載入失敗，請確認網路連線後再試一次。';
+        return;
+      }
+      const zip = await JSZip.loadAsync(file);
+      let entryName = Object.keys(zip.files).find(n=> /\.xlsm$/i.test(n) && !zip.files[n].dir);
+      if(!entryName) entryName = Object.keys(zip.files).find(n=> /\.xlsx$/i.test(n) && !zip.files[n].dir);
+      if(!entryName){
+        statusEl.textContent = '壓縮檔內找不到 .xlsx 或 .xlsm 檔案，請確認壓縮檔內容。';
+        return;
+      }
+      arrayBuffer = await zip.files[entryName].async('arraybuffer');
+    } else {
+      arrayBuffer = await file.arrayBuffer();
+    }
+
+    const wb = XLSX.read(arrayBuffer, {type:'array'});
+    const sheetName = wb.SheetNames.find(n=> n.trim()==='每月預定表') || wb.SheetNames.find(n=> n.indexOf('每月預定表')>=0);
+    if(!sheetName){
+      statusEl.textContent = '檔案內找不到「每月預定表」工作表，請確認上傳的檔案是否正確。';
+      return;
+    }
+    const ws = wb.Sheets[sheetName];
+    const aoa = XLSX.utils.sheet_to_json(ws, {header:1, raw:true, defval:null});
+    const parsed = parseScheduleAoa(aoa);
+    if(!parsed){
+      statusEl.textContent = '解析失敗，找不到「人員番號」列，請確認格式是否與本程式的每月預定表一致。';
+      return;
+    }
+    importParsed = parsed;
+    if(parsed.detectedYear) document.getElementById('importYear').value = parsed.detectedYear;
+    if(parsed.detectedMonth) document.getElementById('importMonth').value = parsed.detectedMonth;
+
+    const badgeToEmpId = {};
+    state.employees.forEach(emp=> badgeToEmpId[String(emp.badge).trim()] = emp.id);
+    const matched = parsed.colBadgeList.filter(cb=> badgeToEmpId[cb.badge]);
+    const unmatched = parsed.colBadgeList.filter(cb=> !badgeToEmpId[cb.badge]);
+
+    statusEl.innerHTML = `已讀取「${escapeHtml(sheetName)}」，共 ${parsed.days.length} 天資料，${matched.length}／${parsed.colBadgeList.length} 位人員番號與目前名冊相符。` +
+      (unmatched.length ? `<br>⚠️ 以下番號在目前名冊中找不到，匯入時會略過：${unmatched.map(u=>escapeHtml(u.badge)).join('、')}` : '');
+    doBtn.disabled = false;
+  }catch(err){
+    console.error(err);
+    statusEl.textContent = '讀取失敗：' + (err && err.message ? err.message : err);
+  }
+}
+document.getElementById('importFileInput').addEventListener('change', handleImportFileChange);
+
+// 解析「每月預定表」的原始二維陣列（aoa），回傳每一天、每個番號欄位對應的儲存格內容
+function parseScheduleAoa(aoa){
+  if(!aoa || aoa.length < 3) return null;
+  const titleRow = aoa[0] || [];
+  const badgeRow = aoa[1] || [];
+
+  const colBadgeList = []; // [{col, badge}]，跳過分隔用的空白欄位
+  let noteCol = -1;
+  for(let c=2; c<badgeRow.length; c++){
+    const v = badgeRow[c];
+    if(v===null || v===undefined || v==='') continue;
+    if(typeof v === 'number' || /^\d+$/.test(String(v).trim())){
+      colBadgeList.push({col:c, badge:String(v).trim()});
+    } else if(String(v).indexOf('備註') >= 0){
+      noteCol = c;
+    }
+  }
+  if(colBadgeList.length === 0) return null;
+
+  let detectedYear = null, detectedMonth = null;
+  const titleText = titleRow.filter(x=> x!=null).join(' ');
+  const m = /(\d{2,3})年(\d{1,2})月/.exec(titleText);
+  if(m){ detectedYear = parseInt(m[1],10); detectedMonth = parseInt(m[2],10); }
+
+  const days = [];
+  for(let r=3; r<aoa.length; r++){
+    const row = aoa[r] || [];
+    const dayVal = row[0];
+    if(typeof dayVal !== 'number' || dayVal < 1 || dayVal > 31) break; // 遇到說明文字/統計區塊等非日期列就停止
+    const cells = {};
+    colBadgeList.forEach(cb=>{ cells[cb.col] = row[cb.col]; });
+    const note = noteCol >= 0 ? row[noteCol] : null;
+    days.push({day:dayVal, cells, note});
+  }
+  if(days.length === 0) return null;
+  return {colBadgeList, noteCol, days, detectedYear, detectedMonth};
+}
+
+// 把 Excel 儲存格文字（例如 "V3"、"公假1"、"換休2"）還原成 state 用的 {type, num} 結構
+// 空白／"主管"／純數字（皆為上班的自動計算標示，非原始資料）一律視為「未填寫」
+function labelToCellData(label){
+  const s = (label===null || label===undefined) ? '' : String(label).trim();
+  if(s === '') return null;
+  if(s === '主管') return null;
+  if(/^\d+$/.test(s)) return null;
+
+  let m = /^V(\d+)$/.exec(s);
+  if(m) return {type:'V', num:parseInt(m[1],10)};
+
+  for(const lt of LEAVE_TYPES){
+    if(s === lt) return {type:lt, num:null};
+    const mm = new RegExp('^'+lt+'(\\d+)$').exec(s);
+    if(mm) return {type:lt, num:parseInt(mm[1],10)};
+  }
+  for(const rt of REQUEST_TYPES){
+    const lbl = REQUEST_TYPE_LABELS[rt];
+    const mm = new RegExp('^'+lbl+'(\\d+)$').exec(s);
+    if(mm) return {type:rt, num:parseInt(mm[1],10)};
+  }
+  return {type:'__unknown__', raw:s};
+}
+
+function runImport(){
+  if(!importParsed) return;
+  const rocYear = parseInt(document.getElementById('importYear').value, 10);
+  const month = parseInt(document.getElementById('importMonth').value, 10);
+  if(!rocYear || !month || month<1 || month>12){ alert('請輸入正確的民國年與月份。'); return; }
+  const user = requireUser();
+  if(!user) return;
+
+  const key = monthKey(rocYear, month);
+  if(!state.monthsData) state.monthsData = {};
+  const existing = state.monthsData[key];
+  const existingCellDays = existing ? Object.keys(existing.cells || {}).length : 0;
+  if(existingCellDays > 0){
+    const ok = confirm(`民國${rocYear}年${month}月已經有 ${existingCellDays} 天的資料，匯入將覆蓋這些天（有出現在匯入檔中的天）的資料。確定要繼續嗎？`);
+    if(!ok) return;
+  }
+
+  const nDays = daysInMonth(rocYear, month);
+  const md = state.monthsData[key] || {cells:{}, notes:{}};
+  state.monthsData[key] = md;
+  if(!md.cells) md.cells = {};
+  if(!md.notes) md.notes = {};
+
+  const badgeToEmpId = {};
+  state.employees.forEach(emp=> badgeToEmpId[String(emp.badge).trim()] = emp.id);
+
+  let importedCells = 0, importedNotes = 0, skippedUnknown = 0;
+  const unknownList = [];
+
+  importParsed.days.forEach(dayObj=>{
+    const day = dayObj.day;
+    if(day < 1 || day > nDays) return; // 匯入檔天數超過該月份的部分略過
+
+    importParsed.colBadgeList.forEach(cb=>{
+      const empId = badgeToEmpId[cb.badge];
+      if(!empId) return; // 名冊中找不到此番號，略過
+      const parsedCell = labelToCellData(dayObj.cells[cb.col]);
+      if(parsedCell && parsedCell.type === '__unknown__'){
+        skippedUnknown++;
+        unknownList.push(`${month}/${day} 番號${cb.badge}：${parsedCell.raw}`);
+        return;
+      }
+      md.cells[day] = md.cells[day] || {};
+      if(parsedCell){
+        md.cells[day][empId] = {type:parsedCell.type, num:parsedCell.num, editor:user, ts:Date.now()};
+        importedCells++;
+      } else {
+        delete md.cells[day][empId];
+      }
+    });
+
+    const noteText = (dayObj.note===null || dayObj.note===undefined) ? '' : String(dayObj.note).trim();
+    if(noteText !== ''){
+      const prevMinus1 = (md.notes[day] && md.notes[day].minus1) || false;
+      md.notes[day] = {text:noteText, minus1:prevMinus1};
+      importedNotes++;
+    }
+  });
+
+  addLog(`【匯入】自 Excel 匯入 民國${rocYear}年${month}月 資料，共寫入 ${importedCells} 格${skippedUnknown ? '，'+skippedUnknown+' 格因格式無法辨識而略過' : ''}`);
+
+  const switchView = confirm(`匯入完成，共寫入 ${importedCells} 格資料。是否切換畫面顯示到剛匯入的民國${rocYear}年${month}月？`);
+  if(switchView){ state.rocYear = rocYear; state.month = month; }
+  render();
+  scheduleSave();
+  closeImportModal();
+
+  if(unknownList.length){
+    alert('以下儲存格內容格式無法辨識，已略過未匯入（可到表格上手動確認並補上）：\n' + unknownList.slice(0,30).join('\n') + (unknownList.length>30 ? `\n...等共 ${unknownList.length} 筆` : ''));
+  }
+}
+document.getElementById('doImportBtn').addEventListener('click', runImport);
 
 /* ---------------- 主管權限 ---------------- */
 const ADMIN_PASSWORD = '7824316';
