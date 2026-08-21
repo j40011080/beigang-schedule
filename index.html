@@ -577,10 +577,15 @@ window.addEventListener('focus', refreshFromCloudNow);
 scheduleRef.on('value', (snapshot)=>{
   const remote = snapshot.val();
   if(!remote){
-    // 資料庫是空的（第一次啟用），把目前預設資料上傳當作初始值
+    // 讀到空值不代表資料庫真的是空的，也可能只是暫時斷線/讀取失敗。
+    // 絕對不能自動把預設範本存回去蓋掉雲端，一定要先問過人再做。
     hasLoadedOnce = true;
-    scheduleSave();
-    setSyncStatus('已同步', '#4C7A54');
+    setSyncStatus('讀不到雲端資料，暫不寫入', '#C1392B');
+    const ok = confirm('偵測到雲端資料庫目前是空的。\n\n如果這是全新啟用，可以按「確定」用目前畫面的預設資料初始化雲端。\n如果雲端原本應該有資料，請按「取消」，並先檢查網路連線或重新整理頁面，避免覆蓋掉原本的紀錄。');
+    if(ok){
+      scheduleSave();
+      setSyncStatus('已同步', '#4C7A54');
+    }
     return;
   }
   normalizeRemoteIntoState(remote);
