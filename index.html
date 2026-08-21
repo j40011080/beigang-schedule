@@ -232,8 +232,6 @@
         <option value="">顯示全部</option>
       </select>
     </div>
-    <button class="iconbtn" id="exportExcelBtn" title="匯出Excel（格式對齊每月預定表，可直接複製貼上）">⬇️</button>
-    <button class="iconbtn" id="importExcelBtn" title="匯入Excel（讀取「每月預定表」工作表，可上傳.xlsx/.xlsm或.zip壓縮檔）">⬆️</button>
     <button class="iconbtn" id="statsBtn" title="換休／增休統計">📊</button>
     <button class="iconbtn" id="checkUpdateBtn" title="手動檢查更新">🔄</button>
     <button class="iconbtn" id="logBtn" title="新增/刪除/修改紀錄">🕐</button>
@@ -350,6 +348,13 @@
     <h2>設定</h2>
     <div class="modalsub">人員名冊、每日上班人數、月份等設定（每月月中可先在此更新下個月人員異動）</div>
 
+    <label>Excel 匯出／匯入</label>
+    <div class="hint">移到設定裡，避免操作表格時不小心點到。</div>
+    <div style="display:flex; gap:10px; margin-top:8px; margin-bottom:16px;">
+      <button class="btn-cancel" id="exportExcelBtn" style="flex:1; padding:10px; border-radius:8px; border:none; cursor:pointer; font-weight:700; font-size:13px;" title="匯出Excel（格式對齊每月預定表，可直接複製貼上）">⬇️ 匯出 Excel</button>
+      <button class="btn-cancel" id="importExcelBtn" style="flex:1; padding:10px; border-radius:8px; border:none; cursor:pointer; font-weight:700; font-size:13px;" title="匯入Excel（讀取「每月預定表」工作表，可上傳.xlsx/.xlsm或.zip壓縮檔）">⬆️ 匯入 Excel</button>
+    </div>
+
     <div class="settingsgrid">
       <div>
         <label>民國年</label>
@@ -447,26 +452,8 @@ function setSyncStatus(text, color){
   if(el){ el.textContent = text; el.style.color = color || '#9FB0C4'; }
 }
 
-function scheduleSave(){
-  if(isApplyingRemote) return; // don't echo back a remote update as a new save
-  setSyncStatus('儲存中…', '#D98E2C');
-  if(saveTimer) clearTimeout(saveTimer);
-  saveTimer = setTimeout(()=>{
-    scheduleRef.set(state)
-      .then(()=> setSyncStatus('已同步', '#4C7A54'))
-      .catch(err=>{ console.error(err); setSyncStatus('同步失敗', '#C1392B'); });
-  }, 400);
-}
-
-scheduleRef.on('value', (snapshot)=>{
-  const remote = snapshot.val();
-  if(!remote){
-    // 資料庫是空的（第一次啟用），把目前預設資料上傳當作初始值
-    hasLoadedOnce = true;
-    scheduleSave();
-    setSyncStatus('已同步', '#4C7A54');
-    return;
-  }
+// 把讀到的遠端資料套用到本機 state（欄位相容處理），會員：初次載入 / 即時監聽 / 分頁重新可見時強制刷新，共用同一套邏輯
+function normalizeRemoteIntoState(remote){
   isApplyingRemote = true;
   state = Object.assign({}, state, remote);
   if(!state.monthsData) state.monthsData = {};
@@ -491,6 +478,106 @@ scheduleRef.on('value', (snapshot)=>{
   document.getElementById('vStartInput').value = state.vStart;
   if(document.getElementById('logOverlay').classList.contains('show')) renderLogList();
   isApplyingRemote = false;
+}
+
+// 存檔前的合併：把「即將寫入」的本機 state 跟雲端目前最新的資料合併，
+// 避免本機分頁太久沒真正同步（背景凍結／斷線很久）時，存檔直接整包覆蓋掉別人剛存的東西。
+// - cells：同一天同一人若雙方都有填，比較 ts（填寫時間）留新的；只有一邊有的（別人新增/自己刪除後別人又新增）就保留，避免遺失別人的資料
+// - notes：合併，本機為主但不會蓋掉遠端才有、本機沒有的其他天備註
+// - changeLog：兩邊合併＋去重＋依時間排序，取最新 300 筆，避免「整包覆蓋」把別人這段時間新增的紀錄整串洗掉
+// - employees：以 id 合併，本機若有異動以本機為準，但不會漏掉遠端新增的人員
+// - 其餘欄位（年月、每日應上班人數等設定值）以本機（使用者正在操作的這份）為準
+function mergeStateForSave(remote, local){
+  if(!remote) return local; // 雲端目前是空的，沒什麼好合併
+  const merged = Object.assign({}, remote, local);
+
+  const remoteMonths = remote.monthsData || {};
+  const localMonths = local.monthsData || {};
+  const mergedMonths = {};
+  const allMonthKeys = new Set([...Object.keys(remoteMonths), ...Object.keys(localMonths)]);
+  allMonthKeys.forEach(key=>{
+    const r = remoteMonths[key] || {};
+    const l = localMonths[key] || {};
+    const rCells = r.cells || {}, lCells = l.cells || {};
+    const mergedCells = {};
+    const allDays = new Set([...Object.keys(rCells), ...Object.keys(lCells)]);
+    allDays.forEach(day=>{
+      const rDay = rCells[day] || {}, lDay = lCells[day] || {};
+      const mergedDay = {};
+      const allEmp = new Set([...Object.keys(rDay), ...Object.keys(lDay)]);
+      allEmp.forEach(emp=>{
+        const rc = rDay[emp], lc = lDay[emp];
+        if(rc && lc){ mergedDay[emp] = ((lc.ts||0) >= (rc.ts||0)) ? lc : rc; }
+        else { mergedDay[emp] = lc || rc; }
+      });
+      if(Object.keys(mergedDay).length) mergedCells[day] = mergedDay;
+    });
+    const mergedNotes = Object.assign({}, r.notes||{}, l.notes||{});
+    mergedMonths[key] = { cells: mergedCells, notes: mergedNotes };
+  });
+  merged.monthsData = mergedMonths;
+
+  const seen = new Set();
+  const combinedLog = [...(local.changeLog||[]), ...(remote.changeLog||[])].filter(e=>{
+    const k = e.ts+'|'+e.user+'|'+e.text;
+    if(seen.has(k)) return false;
+    seen.add(k);
+    return true;
+  }).sort((a,b)=> b.ts - a.ts);
+  merged.changeLog = combinedLog.slice(0, LOG_MAX);
+
+  const empMap = new Map();
+  (remote.employees||[]).forEach(e=> empMap.set(e.id, e));
+  (local.employees||[]).forEach(e=> empMap.set(e.id, e));
+  merged.employees = Array.from(empMap.values());
+
+  return merged;
+}
+
+function scheduleSave(){
+  if(isApplyingRemote) return; // don't echo back a remote update as a new save
+  setSyncStatus('儲存中…', '#D98E2C');
+  if(saveTimer) clearTimeout(saveTimer);
+  saveTimer = setTimeout(()=>{
+    scheduleRef.once('value').then(snap=>{
+      const remote = snap.val();
+      const merged = mergeStateForSave(remote, state);
+      isApplyingRemote = true; // 合併結果套回畫面，但這步不算「新的一次編輯」，不用再觸發存檔
+      state = merged;
+      render();
+      if(document.getElementById('logOverlay').classList.contains('show')) renderLogList();
+      isApplyingRemote = false;
+      return scheduleRef.set(state);
+    })
+      .then(()=> setSyncStatus('已同步', '#4C7A54'))
+      .catch(err=>{ console.error(err); setSyncStatus('同步失敗', '#C1392B'); });
+  }, 400);
+}
+
+// 分頁從背景切回前景（或電腦版視窗重新取得焦點）時，強制重新抓一次雲端最新資料，
+// 避免手機瀏覽器背景太久被系統凍結、或訊號不穩斷線很久之後，還在用舊資料操作。
+function refreshFromCloudNow(){
+  if(!hasLoadedOnce) return; // 還沒完成第一次載入時交給初次監聽處理就好
+  scheduleRef.once('value').then(snap=>{
+    const remote = snap.val();
+    if(!remote) return;
+    normalizeRemoteIntoState(remote);
+    setSyncStatus('已同步', '#4C7A54');
+  }).catch(err=>{ console.error(err); });
+}
+document.addEventListener('visibilitychange', ()=>{ if(document.visibilityState==='visible') refreshFromCloudNow(); });
+window.addEventListener('focus', refreshFromCloudNow);
+
+scheduleRef.on('value', (snapshot)=>{
+  const remote = snapshot.val();
+  if(!remote){
+    // 資料庫是空的（第一次啟用），把目前預設資料上傳當作初始值
+    hasLoadedOnce = true;
+    scheduleSave();
+    setSyncStatus('已同步', '#4C7A54');
+    return;
+  }
+  normalizeRemoteIntoState(remote);
   setSyncStatus('已同步', '#4C7A54');
 }, (err)=>{
   console.error(err);
@@ -766,7 +853,7 @@ function exportToExcel(){
   XLSX.writeFile(wb, `${title}.xlsx`);
   addLog(`【匯出】已匯出 民國${state.rocYear}年${state.month}月 Excel 檔（每月預定表格式）`);
 }
-document.getElementById('exportExcelBtn').addEventListener('click', exportToExcel);
+document.getElementById('exportExcelBtn').addEventListener('click', ()=>{ closeSettings(); exportToExcel(); });
 
 /* ---------------- 匯入Excel（讀取「每月預定表」工作表，支援.xlsx/.xlsm或包著它的.zip） ---------------- */
 let importParsed = null; // 解析後的暫存結果，按「開始匯入」才會真的寫入 state
@@ -785,7 +872,7 @@ function openImportModal(){
 function closeImportModal(){
   document.getElementById('importOverlay').classList.remove('show');
 }
-document.getElementById('importExcelBtn').addEventListener('click', openImportModal);
+document.getElementById('importExcelBtn').addEventListener('click', ()=>{ closeSettings(); openImportModal(); });
 
 async function handleImportFileChange(e){
   const file = e.target.files[0];
