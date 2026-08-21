@@ -1410,8 +1410,26 @@ document.getElementById('filterNameInput').addEventListener('change', (e)=>{
 /* ---------------- Cell modal ---------------- */
 let activeDay=null, activeEmp=null, selectedType=null;
 
-function openCellModal(day, empId){
+// 打開填假視窗前，強制先跟雲端拉一次最新資料再顯示，
+// 避免頁面開太久沒有觸發 visibilitychange/focus（例如電腦版視窗一直開著沒切走），
+// 導致看到的名額、既有紀錄是舊的，甚至填到已經被別人洗掉的格子上。
+async function refreshFromCloudBeforeEdit(){
+  setSyncStatus('更新中…', '#D98E2C');
+  try{
+    const snap = await scheduleRef.once('value');
+    const remote = snap.val();
+    if(remote) normalizeRemoteIntoState(remote);
+    setSyncStatus('已同步', '#4C7A54');
+    return true;
+  }catch(err){
+    console.error(err);
+    setSyncStatus('連線失敗，目前可能不是最新資料', '#C1392B');
+    return false;
+  }
+}
+async function openCellModal(day, empId){
   if(!requireUser()) return;
+  await refreshFromCloudBeforeEdit();
   activeDay = day; activeEmp = empId;
   const emp = state.employees.find(e=>e.id===empId);
   const wk = weekdayOf(state.rocYear, state.month, day);
@@ -1536,9 +1554,10 @@ function closeCellModal(){
 
 /* ---------------- Note modal ---------------- */
 let activeNoteDay = null;
-function openNoteModal(day){
+async function openNoteModal(day){
   if(!requireUser()) return;
   if(!requireAdmin()) return;
+  await refreshFromCloudBeforeEdit();
   activeNoteDay = day;
   const wk = weekdayOf(state.rocYear, state.month, day);
   const note = getNote(day);
