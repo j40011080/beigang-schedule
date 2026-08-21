@@ -512,7 +512,13 @@ function mergeStateForSave(remote, local){
       });
       if(Object.keys(mergedDay).length) mergedCells[day] = mergedDay;
     });
-    const mergedNotes = Object.assign({}, r.notes||{}, l.notes||{});
+    const rNotes = r.notes || {}, lNotes = l.notes || {};
+    const mergedNotes = {};
+    new Set([...Object.keys(rNotes), ...Object.keys(lNotes)]).forEach(day=>{
+      const rn = rNotes[day], ln = lNotes[day];
+      if(rn && ln){ mergedNotes[day] = ((ln.ts||0) >= (rn.ts||0)) ? ln : rn; }
+      else { mergedNotes[day] = ln || rn; }
+    });
     mergedMonths[key] = { cells: mergedCells, notes: mergedNotes };
   });
   merged.monthsData = mergedMonths;
@@ -768,12 +774,16 @@ function currentMonthData(){
   return md;
 }
 function ensureDay(day){ const md = currentMonthData(); if(!md.cells[day]) md.cells[day] = {}; }
-function getCell(day, empId){ ensureDay(day); return currentMonthData().cells[day][empId] || null; }
-function setCellData(day, empId, data){ ensureDay(day); currentMonthData().cells[day][empId] = data; }
-function clearCellData(day, empId){ ensureDay(day); delete currentMonthData().cells[day][empId]; }
-function getNote(day){ return currentMonthData().notes[day] || {text:'', minus1:false}; }
-function setNoteData(day, data){ currentMonthData().notes[day] = data; }
-function clearNoteData(day){ delete currentMonthData().notes[day]; }
+// 注意：cells/notes 的「清除」不能直接 delete key，而是寫入一個帶時間戳的刪除標記（tombstone）。
+// 原因：mergeStateForSave 合併時，只看得到「這一格本機有沒有值」，如果直接刪掉 key，
+// 合併時會誤判成「本機沒填、遠端有填」而把舊資料救回來，導致清除永遠失敗。
+// 用帶 ts 的標記，合併時才能跟遠端的 ts 比新舊，正確保留「後來的刪除」。
+function getCell(day, empId){ ensureDay(day); const c = currentMonthData().cells[day][empId]; return (c && !c.deleted) ? c : null; }
+function setCellData(day, empId, data){ ensureDay(day); currentMonthData().cells[day][empId] = Object.assign({}, data, {ts: Date.now()}); }
+function clearCellData(day, empId){ ensureDay(day); currentMonthData().cells[day][empId] = {deleted:true, ts:Date.now(), editor:(localUserName&&localUserName.trim())||''}; }
+function getNote(day){ const n = currentMonthData().notes[day]; return (n && !n.deleted) ? n : {text:'', minus1:false}; }
+function setNoteData(day, data){ currentMonthData().notes[day] = Object.assign({}, data, {ts: Date.now()}); }
+function clearNoteData(day){ currentMonthData().notes[day] = {deleted:true, ts:Date.now(), text:'', minus1:false}; }
 
 /* ---------------- 匯出Excel（格式對齊「每月預定表」工作表，方便直接複製貼上） ---------------- */
 function exportToExcel(){
@@ -1048,7 +1058,7 @@ function runImport(){
         md.cells[day][empId] = {type:parsedCell.type, num:parsedCell.num, editor:user, ts:Date.now()};
         importedCells++;
       } else {
-        delete md.cells[day][empId];
+        md.cells[day][empId] = {deleted:true, ts:Date.now(), editor:user};
       }
     });
 
