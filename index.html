@@ -210,6 +210,12 @@
 </head>
 <body>
 
+<div id="initialLoadOverlay" style="position:fixed; inset:0; background:#1B2430; z-index:9999; display:flex; align-items:center; justify-content:center; flex-direction:column; gap:14px; color:#D9DEE6; font-size:15px;">
+  <div style="width:34px; height:34px; border:3px solid #3A4657; border-top-color:#D98E2C; border-radius:50%; animation:spin 0.8s linear infinite;"></div>
+  <div>正在讀取雲端最新資料…</div>
+</div>
+<style>@keyframes spin{ to{ transform:rotate(360deg); } }</style>
+
 <div id="updateBanner" class="updatebanner">🔔 偵測到 GitHub 上已有新版本，點此立即更新畫面</div>
 
 <header class="topbar">
@@ -509,6 +515,8 @@ function normalizeRemoteIntoState(remote){
   document.getElementById('vStartInput').value = state.vStart;
   if(document.getElementById('logOverlay').classList.contains('show')) renderLogList();
   isApplyingRemote = false;
+  const loadOverlay = document.getElementById('initialLoadOverlay');
+  if(loadOverlay) loadOverlay.style.display = 'none';
 }
 
 // 存檔前的合併：把「即將寫入」的本機 state 跟雲端目前最新的資料合併，
@@ -555,13 +563,16 @@ function mergeStateForSave(remote, local){
   merged.monthsData = mergedMonths;
 
   const seen = new Set();
+  const clearedAt = Math.max(remote.logClearedAt||0, local.logClearedAt||0);
   const combinedLog = [...(local.changeLog||[]), ...(remote.changeLog||[])].filter(e=>{
+    if((e.ts||0) < clearedAt) return false; // 清除時間點之前的紀錄一律過濾掉，不會被對方的舊資料補回來
     const k = e.ts+'|'+e.user+'|'+e.text;
     if(seen.has(k)) return false;
     seen.add(k);
     return true;
   }).sort((a,b)=> b.ts - a.ts);
   merged.changeLog = combinedLog; // 不設數量上限，完整保留合併後的所有紀錄
+  merged.logClearedAt = clearedAt;
 
   const empMap = new Map();
   (remote.employees||[]).forEach(e=> empMap.set(e.id, e));
@@ -583,19 +594,22 @@ function scheduleSave(){
 // 也可能只是暫時斷線、分頁背景太久、或這次讀取剛好失敗。如果本機剛好是一份舊分頁裡
 // 停留很久的舊資料（例如少了後來新增的人員、舊月份資料、舊異動紀錄），
 // 沒合併就整包蓋上去，就會把雲端上大家後來新增的東西全部洗掉。
-// 所以只要 hasLoadedOnce 為 true（代表這台裝置之前已經成功讀過一次真實的雲端資料），
-// 之後任何一次讀取失敗都當作「暫時性」處理：重試幾次，仍然失敗就直接放棄這次存檔，
-// 絕對不用未合併的本機資料覆蓋雲端。
+// 這裡的防呆不看 hasLoadedOnce：無論是不是這台裝置第一次存檔，只要這一次讀不到雲端資料，
+// 一律當作「暫時性失敗」處理、重試幾次，絕不允許用「讀取失敗」當理由去整包覆蓋雲端——
+// 因為剛重新整理頁面、還沒收到第一次真正資料的那個空窗期，本機的 state 就是完全空白的
+// 出廠預設值（範本人員、沒有任何月份資料），這種資料一旦被寫進雲端等於把全部人的紀錄清空，
+// 這正是之前「手動更新後跳回7月、9月資料跟著消失」的真正成因，所以這個防呆必須無條件套用。
 function attemptSave(retryCount){
   scheduleRef.once('value').then(snap=>{
     const remote = snap.val();
-    if(!remote && hasLoadedOnce){
-      if(retryCount < 5){
+    if(!remote){
+      if(retryCount < 8){
         setSyncStatus('雲端暫時讀不到，重試中…', '#D98E2C');
         setTimeout(()=> attemptSave(retryCount+1), 1000 * (retryCount+1));
         return;
       }
       setSyncStatus('同步失敗（讀不到雲端資料，已放棄這次存檔以避免覆蓋，稍後會自動重試）', '#C1392B');
+      saveTimer = setTimeout(()=> attemptSave(0), 5000);
       return;
     }
     const merged = mergeStateForSave(remote, state);
@@ -609,11 +623,12 @@ function attemptSave(retryCount){
       .catch(err=>{ console.error(err); setSyncStatus('同步失敗', '#C1392B'); });
   }).catch(err=>{
     console.error(err);
-    if(retryCount < 5){
+    if(retryCount < 8){
       setSyncStatus('雲端暫時讀不到，重試中…', '#D98E2C');
       setTimeout(()=> attemptSave(retryCount+1), 1000 * (retryCount+1));
     } else {
       setSyncStatus('同步失敗', '#C1392B');
+      saveTimer = setTimeout(()=> attemptSave(0), 5000);
     }
   });
 }
@@ -638,11 +653,17 @@ scheduleRef.on('value', (snapshot)=>{
     // 讀到空值不代表資料庫真的是空的，也可能只是暫時斷線/讀取失敗。
     // 絕對不能自動把預設範本存回去蓋掉雲端，一定要先問過人再做。
     hasLoadedOnce = true;
+    const loadOverlay = document.getElementById('initialLoadOverlay');
+    if(loadOverlay) loadOverlay.style.display = 'none';
     setSyncStatus('讀不到雲端資料，暫不寫入', '#C1392B');
     const ok = confirm('偵測到雲端資料庫目前是空的。\n\n如果這是全新啟用，可以按「確定」用目前畫面的預設資料初始化雲端。\n如果雲端原本應該有資料，請按「取消」，並先檢查網路連線或重新整理頁面，避免覆蓋掉原本的紀錄。');
     if(ok){
-      scheduleSave();
-      setSyncStatus('已同步', '#4C7A54');
+      // 這裡是使用者明確確認過的「全新初始化」，直接寫入即可，
+      // 不要走 attemptSave 的合併保護（那套保護是為了「讀不到=先別亂存」，
+      // 但這裡的情境是「已經問過人、確定就是要用這份預設資料建立雲端」，兩者不衝突）。
+      scheduleRef.set(state)
+        .then(()=> setSyncStatus('已同步', '#4C7A54'))
+        .catch(err=>{ console.error(err); setSyncStatus('同步失敗', '#C1392B'); });
     }
     return;
   }
@@ -663,7 +684,9 @@ function addLog(text){
   scheduleSave();
 }
 // 手動清除異動紀錄：只清 changeLog，不動 cells/notes/employees 等其他介面資料。
-// 清除本身也會被記一筆，讓後續看紀錄的人知道發生過清除、是誰清的。
+// 用「清除時間點」當標記存進 state.logClearedAt，合併存檔（mergeStateForSave）跟畫面顯示
+// 都會把「清除時間點之前」的紀錄一律過濾掉，而不是單純清空本機陣列——
+// 否則合併存檔時，雲端原本還在的舊紀錄會被當成「別人剛新增的」加回來，等於清了又補回去，按確定完全沒反應。
 function clearChangeLog(){
   if(!requireUser()) return;
   if(!requireAdmin()) return;
@@ -671,14 +694,17 @@ function clearChangeLog(){
   const ok = confirm(`確定要清除全部 ${count} 筆異動紀錄嗎？此動作只會刪除紀錄本身，不會影響任何排班／備註資料，且無法復原。`);
   if(!ok) return;
   const user = (localUserName && localUserName.trim()) || '(未指定)';
-  state.changeLog = [{ ts: Date.now(), user, text: `【設定】清除全部異動紀錄（原有 ${count} 筆）` }];
+  const now = Date.now();
+  state.logClearedAt = now;
+  state.changeLog = [{ ts: now, user, text: `【設定】清除全部異動紀錄（原有 ${count} 筆）` }];
   if(document.getElementById('logOverlay').classList.contains('show')) renderLogList();
   scheduleSave();
 }
 
 function renderLogList(){
   const box = document.getElementById('logList');
-  const log = Array.isArray(state.changeLog) ? state.changeLog : [];
+  const clearedAt = state.logClearedAt || 0;
+  const log = (Array.isArray(state.changeLog) ? state.changeLog : []).filter(e=> (e.ts||0) >= clearedAt);
   if(log.length===0){ box.innerHTML = '<div style="padding:20px 0;color:#999;font-size:13px;">尚無紀錄</div>'; return; }
   box.innerHTML = log.map(entry=>{
     const dt = new Date(entry.ts).toLocaleString('zh-TW');
