@@ -250,7 +250,7 @@
   <div class="modal" style="max-width:640px;">
     <button class="closebtn" onclick="closeLog()">×</button>
     <h2>新增/刪除/修改紀錄</h2>
-    <div class="modalsub">最新異動在最上面，紀錄會隨排休表一起同步到雲端（所有裝置共用），最多保留300筆，超過會自動刪除最舊的一筆以節省空間</div>
+    <div class="modalsub">最新異動在最上面，紀錄會隨排休表一起同步到雲端（所有裝置共用），不設自動筆數上限，可在「設定」裡手動一次清除</div>
     <div id="logList" style="max-height:60vh; overflow-y:auto;"></div>
   </div>
 </div>
@@ -449,6 +449,12 @@
       </div>
     </div>
     <div class="hint">預設會自動從檔案標題判斷年月，若判斷錯誤或想匯入到別的年月，可自行修改上面的年/月。已存在的天數資料會被匯入內容覆蓋，其餘天數不受影響。</div>
+    <div id="importOverwriteWarning" style="display:none; margin-top:10px; padding:10px 12px; border-radius:8px; background:#FCEFD8; color:#8A5A15; font-size:12.5px; line-height:1.6; font-weight:700;"></div>
+
+    <label style="margin-top:14px; display:flex; align-items:center; gap:8px; font-weight:400; font-size:13px; cursor:pointer;">
+      <input type="checkbox" id="importSwitchViewCheck" checked style="width:16px; height:16px;">
+      匯入完成後，切換畫面顯示到這個年月
+    </label>
 
     <div class="modal-actions">
       <button class="btn-cancel" onclick="closeImportModal()">取消</button>
@@ -1016,6 +1022,8 @@ function openImportModal(){
   document.getElementById('importYear').value = state.rocYear;
   document.getElementById('importMonth').value = state.month;
   document.getElementById('doImportBtn').disabled = true;
+  document.getElementById('importOverwriteWarning').style.display = 'none';
+  document.getElementById('importSwitchViewCheck').checked = true;
   document.getElementById('importOverlay').classList.add('show');
 }
 function closeImportModal(){
@@ -1089,12 +1097,38 @@ async function handleImportFileChange(e){
     statusEl.innerHTML = `已讀取「${escapeHtml(sheetName)}」，共 ${parsed.days.length} 天資料，${matched.length}／${parsed.colBadgeList.length} 位人員番號與目前名冊相符。` +
       (unmatched.length ? `<br>⚠️ 以下番號在目前名冊中找不到，匯入時會略過：${unmatched.map(u=>escapeHtml(u.badge)).join('、')}` : '');
     doBtn.disabled = false;
+    updateImportOverwriteWarning();
   }catch(err){
     console.error(err);
     statusEl.textContent = '讀取失敗：' + (err && err.message ? err.message : err) + '（可截圖此訊息回報，會比較好排查原因）';
   }
 }
 document.getElementById('importFileInput').addEventListener('change', handleImportFileChange);
+
+// 匯入目標年/月是否已有資料，改成畫面上常駐顯示的文字提示，不用瀏覽器 confirm()。
+// （手機版 Safari 在同一頁面短時間內跳出太多次 confirm/alert 會被系統直接靜音、自動當成取消，
+// 完全不會顯示任何畫面，之前「匯入沒反應、也沒有錯誤訊息」多半就是踩到這個限制。）
+function updateImportOverwriteWarning(){
+  const warnEl = document.getElementById('importOverwriteWarning');
+  if(!warnEl) return;
+  const rocYear = parseInt(document.getElementById('importYear').value, 10);
+  const month = parseInt(document.getElementById('importMonth').value, 10);
+  if(!importParsed || !rocYear || !month || month<1 || month>12){
+    warnEl.style.display = 'none';
+    return;
+  }
+  const key = monthKey(rocYear, month);
+  const existing = state.monthsData && state.monthsData[key];
+  const existingCellDays = existing ? Object.keys(existing.cells || {}).length : 0;
+  if(existingCellDays > 0){
+    warnEl.style.display = 'block';
+    warnEl.textContent = `⚠️ 民國${rocYear}年${month}月目前已經有 ${existingCellDays} 天的資料，按「開始匯入」後，匯入檔裡有出現的天會被覆蓋，其餘天數不受影響。`;
+  } else {
+    warnEl.style.display = 'none';
+  }
+}
+document.getElementById('importYear').addEventListener('input', updateImportOverwriteWarning);
+document.getElementById('importMonth').addEventListener('input', updateImportOverwriteWarning);
 
 // 解析「每月預定表」的原始二維陣列（aoa），回傳每一天、每個番號欄位對應的儲存格內容
 function parseScheduleAoa(aoa){
@@ -1168,12 +1202,9 @@ function runImport(){
 
   const key = monthKey(rocYear, month);
   if(!state.monthsData) state.monthsData = {};
-  const existing = state.monthsData[key];
-  const existingCellDays = existing ? Object.keys(existing.cells || {}).length : 0;
-  if(existingCellDays > 0){
-    const ok = confirm(`民國${rocYear}年${month}月已經有 ${existingCellDays} 天的資料，匯入將覆蓋這些天（有出現在匯入檔中的天）的資料。確定要繼續嗎？`);
-    if(!ok) return;
-  }
+  // 已有資料時的覆蓋提醒，改成匯入視窗裡常駐顯示的文字（見 updateImportOverwriteWarning），
+  // 使用者按下「開始匯入」本身就是看過提醒後的確認動作，不再另外跳 confirm()，
+  // 避免手機瀏覽器把連續的系統彈窗自動靜音、導致匯入看起來悄悄失敗。
 
   const nDays = daysInMonth(rocYear, month);
   const md = state.monthsData[key] || {cells:{}, notes:{}};
@@ -1219,17 +1250,39 @@ function runImport(){
 
   addLog(`【匯入】自 Excel 匯入 民國${rocYear}年${month}月 資料，共寫入 ${importedCells} 格${skippedUnknown ? '，'+skippedUnknown+' 格因格式無法辨識而略過' : ''}`);
 
-  const switchView = confirm(`匯入完成，共寫入 ${importedCells} 格資料。是否切換畫面顯示到剛匯入的民國${rocYear}年${month}月？`);
+  const switchView = document.getElementById('importSwitchViewCheck').checked;
   if(switchView){ state.rocYear = rocYear; state.month = month; }
   render();
   scheduleSave();
   closeImportModal();
 
+  // 用畫面上的提示條取代 alert()，避免匯入結果訊息也被瀏覽器的彈窗靜音機制擋掉、使用者完全看不到結果
+  let toastMsg = `✅ 匯入完成，共寫入 ${importedCells} 格資料${switchView ? '，畫面已切換到民國'+rocYear+'年'+month+'月' : ''}`;
+  if(skippedUnknown){
+    toastMsg += `\n⚠️ ${skippedUnknown} 格內容格式無法辨識已略過：` + unknownList.slice(0,5).join('、') + (unknownList.length>5 ? ` 等共${unknownList.length}筆` : '');
+  }
+  showToast(toastMsg, skippedUnknown ? 9000 : 5000);
+
   if(unknownList.length){
-    alert('以下儲存格內容格式無法辨識，已略過未匯入（可到表格上手動確認並補上）：\n' + unknownList.slice(0,30).join('\n') + (unknownList.length>30 ? `\n...等共 ${unknownList.length} 筆` : ''));
+    console.warn('匯入時以下儲存格內容格式無法辨識，已略過：', unknownList);
   }
 }
 document.getElementById('doImportBtn').addEventListener('click', runImport);
+
+// 簡單的畫面提示條（取代 alert()），避免連續操作時被瀏覽器的系統彈窗靜音機制擋掉而完全看不到任何回饋
+function showToast(text, ms){
+  let el = document.getElementById('appToast');
+  if(!el){
+    el = document.createElement('div');
+    el.id = 'appToast';
+    el.style.cssText = 'position:fixed; left:50%; bottom:28px; transform:translateX(-50%); max-width:90vw; background:#22303F; color:#EDEFF2; padding:12px 18px; border-radius:10px; font-size:13.5px; line-height:1.6; box-shadow:0 6px 20px rgba(0,0,0,0.35); z-index:10000; white-space:pre-line;';
+    document.body.appendChild(el);
+  }
+  el.textContent = text;
+  el.style.display = 'block';
+  clearTimeout(el._hideTimer);
+  el._hideTimer = setTimeout(()=>{ el.style.display = 'none'; }, ms || 5000);
+}
 
 /* ---------------- 主管權限 ---------------- */
 const ADMIN_PASSWORD = '7824316';
