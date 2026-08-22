@@ -355,10 +355,17 @@
     <div class="modalsub">人員名冊、每日上班人數、月份等設定（每月月中可先在此更新下個月人員異動）</div>
 
     <label>Excel 匯出／匯入</label>
-    <div class="hint">移到設定裡，避免操作表格時不小心點到。</div>
+    <div class="hint">貼到其他Excel專用的格式（「每月預定表」樣式），只包含畫面上看得到的排班內容，不含系統內部欄位，無法完整還原。</div>
     <div style="display:flex; gap:10px; margin-top:8px; margin-bottom:16px;">
       <button class="btn-cancel" id="exportExcelBtn" style="flex:1; padding:10px; border-radius:8px; border:none; cursor:pointer; font-weight:700; font-size:13px;" title="匯出Excel（格式對齊每月預定表，可指定要匯出的年月）">⬇️ 匯出 Excel</button>
       <button class="btn-cancel" id="importExcelBtn" style="flex:1; padding:10px; border-radius:8px; border:none; cursor:pointer; font-weight:700; font-size:13px;" title="匯入Excel（讀取「每月預定表」工作表，可上傳.xlsx/.xlsm或.zip壓縮檔）">⬆️ 匯入 Excel</button>
+    </div>
+
+    <label>完整備份（JSON）</label>
+    <div class="hint">跟畫面上目前資料完全一致的完整備份，包含所有月份、人員名冊、每日應上班設定。建議定期匯出存一份，之後可以用「匯入還原」把資料完整還原回來。</div>
+    <div style="display:flex; gap:10px; margin-top:8px; margin-bottom:16px;">
+      <button class="btn-cancel" id="exportBackupBtn" style="flex:1; padding:10px; border-radius:8px; border:none; cursor:pointer; font-weight:700; font-size:13px;" title="匯出完整備份（.json，跟畫面資料完全一致）">💾 匯出完整備份</button>
+      <button class="btn-cancel" id="importBackupBtn" style="flex:1; padding:10px; border-radius:8px; border:none; cursor:pointer; font-weight:700; font-size:13px;" title="匯入還原備份（讀取先前匯出的 .json 備份檔）">♻️ 匯入還原備份</button>
     </div>
 
     <label>異動紀錄</label>
@@ -459,6 +466,33 @@
     <div class="modal-actions">
       <button class="btn-cancel" onclick="closeImportModal()">取消</button>
       <button class="btn-save" id="doImportBtn" disabled>開始匯入</button>
+    </div>
+  </div>
+</div>
+
+<!-- 匯入還原備份 modal -->
+<div class="overlay" id="backupImportOverlay">
+  <div class="modal" style="max-width:520px;">
+    <button class="closebtn" onclick="closeBackupImportModal()">×</button>
+    <h2>匯入還原備份</h2>
+    <div class="modalsub">請上傳先前用「匯出完整備份」產生的 .json 檔。還原內容跟匯出當下畫面上的資料完全一致，包含所有月份的排班資料。</div>
+
+    <input type="file" id="backupFileInput" accept=".json">
+    <div id="backupImportStatus" style="font-size:12.5px; color:#6b6558; margin-top:10px; line-height:1.6;">請選擇要匯入的備份檔</div>
+    <div id="backupOverwriteWarning" style="display:none; margin-top:10px; padding:10px 12px; border-radius:8px; background:#FCEFD8; color:#8A5A15; font-size:12.5px; line-height:1.6; font-weight:700;"></div>
+
+    <label style="margin-top:14px; display:flex; align-items:center; gap:8px; font-weight:400; font-size:13px; cursor:pointer;">
+      <input type="checkbox" id="backupRestoreRosterCheck" checked style="width:16px; height:16px;">
+      同時還原人員名冊／每日應上班人數／V起始值設定
+    </label>
+    <label style="margin-top:8px; display:flex; align-items:center; gap:8px; font-weight:400; font-size:13px; cursor:pointer;">
+      <input type="checkbox" id="backupSwitchViewCheck" checked style="width:16px; height:16px;">
+      還原完成後，切換畫面顯示到備份當時的年月
+    </label>
+
+    <div class="modal-actions">
+      <button class="btn-cancel" onclick="closeBackupImportModal()">取消</button>
+      <button class="btn-save" id="doBackupImportBtn" disabled>開始還原</button>
     </div>
   </div>
 </div>
@@ -1003,11 +1037,40 @@ document.getElementById('doExportBtn').addEventListener('click', ()=>{
   const y = parseInt(document.getElementById('exportYear').value, 10);
   const m = parseInt(document.getElementById('exportMonth').value, 10);
   if(!y || !m || m<1 || m>12){ alert('請輸入正確的民國年與月份。'); return; }
-  const ok = confirm(`確定要匯出 民國${y}年${m}月 的 Excel 檔嗎？`);
-  if(!ok) return;
+  // 這裡原本有一個 confirm() 二次確認，已移除——手機瀏覽器對同一頁面短時間內連續跳出的
+  // 系統彈窗會自動靜音、直接視為取消，容易讓使用者以為「按了沒反應」。匯出本身不會更動
+  // 任何資料，不需要額外確認，按下「開始匯出」直接執行即可。
   if(exportMonthToExcel(y, m)) closeExportModal();
 });
 document.getElementById('clearLogBtn').addEventListener('click', ()=>{ clearChangeLog(); });
+
+/* ---------------- 完整備份／還原（JSON，內容跟目前畫面資料完全一致，用於備份與還原，不是給貼到其他Excel用的） ---------------- */
+function exportBackupJson(){
+  const user = requireUser();
+  if(!user) return;
+  const payload = {
+    __type: 'bg_backup_v1',
+    exportedAt: Date.now(),
+    exportedBy: user,
+    state: state,
+  };
+  const json = JSON.stringify(payload, null, 2);
+  const blob = new Blob([json], {type:'application/json'});
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  const now = new Date();
+  const pad = n=> String(n).padStart(2,'0');
+  const stamp = `${now.getFullYear()}${pad(now.getMonth()+1)}${pad(now.getDate())}_${pad(now.getHours())}${pad(now.getMinutes())}`;
+  a.href = url;
+  a.download = `雲林縣消防局第三大隊北港分隊_完整備份_${stamp}.json`;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  URL.revokeObjectURL(url);
+  addLog(`【匯出】已匯出完整備份 JSON 檔（含所有月份資料，可用於還原）`);
+  showToast('✅ 完整備份已匯出，請妥善保存這個檔案');
+}
+document.getElementById('exportBackupBtn').addEventListener('click', exportBackupJson);
 
 
 /* ---------------- 匯入Excel（讀取「每月預定表」工作表，支援.xlsx/.xlsm或包著它的.zip） ---------------- */
@@ -1283,6 +1346,138 @@ function showToast(text, ms){
   clearTimeout(el._hideTimer);
   el._hideTimer = setTimeout(()=>{ el.style.display = 'none'; }, ms || 5000);
 }
+
+/* ---------------- 匯入還原完整備份（讀取先前用「匯出完整備份」產生的 .json 檔） ---------------- */
+let backupParsed = null; // {exportedAt, exportedBy, state}，按「開始還原」才會真的套用
+
+function openBackupImportModal(){
+  if(!requireUser()) return;
+  if(!requireAdmin()) return; // 會整批覆蓋排班／人員資料，比照其他敏感操作需要主管權限
+  backupParsed = null;
+  document.getElementById('backupFileInput').value = '';
+  document.getElementById('backupImportStatus').textContent = '請選擇要匯入的備份檔';
+  document.getElementById('backupOverwriteWarning').style.display = 'none';
+  document.getElementById('backupRestoreRosterCheck').checked = true;
+  document.getElementById('backupSwitchViewCheck').checked = true;
+  document.getElementById('doBackupImportBtn').disabled = true;
+  document.getElementById('backupImportOverlay').classList.add('show');
+}
+function closeBackupImportModal(){ document.getElementById('backupImportOverlay').classList.remove('show'); }
+document.getElementById('importBackupBtn').addEventListener('click', ()=>{ closeSettings(); openBackupImportModal(); });
+
+function updateBackupOverwriteWarning(){
+  const warnEl = document.getElementById('backupOverwriteWarning');
+  if(!warnEl) return;
+  if(!backupParsed){ warnEl.style.display = 'none'; return; }
+  const backupMonths = Object.keys(backupParsed.state.monthsData || {});
+  const overlapping = backupMonths.filter(key=>{
+    const existing = state.monthsData && state.monthsData[key];
+    return existing && Object.keys(existing.cells||{}).length > 0;
+  });
+  if(overlapping.length){
+    warnEl.style.display = 'block';
+    warnEl.textContent = `⚠️ 目前系統裡，以下月份已經有資料：${overlapping.map(monthKeyLabel).join('、')}。按「開始還原」後，備份裡有的天數會直接覆蓋成備份當時的內容，其餘天數不受影響。`;
+  } else {
+    warnEl.style.display = 'none';
+  }
+}
+function monthKeyLabel(key){
+  const m = /^(\d+)_(\d+)$/.exec(key);
+  return m ? `民國${m[1]}年${m[2]}月` : key;
+}
+
+async function handleBackupFileChange(e){
+  const file = e.target.files[0];
+  const statusEl = document.getElementById('backupImportStatus');
+  const doBtn = document.getElementById('doBackupImportBtn');
+  doBtn.disabled = true;
+  backupParsed = null;
+  document.getElementById('backupOverwriteWarning').style.display = 'none';
+  if(!file) return;
+
+  statusEl.textContent = '讀取中…';
+  try{
+    const text = await file.text();
+    let payload;
+    try{
+      payload = JSON.parse(text);
+    }catch(parseErr){
+      statusEl.textContent = '無法解析這個檔案，不是有效的 JSON 格式，請確認上傳的是「匯出完整備份」產生的檔案。';
+      return;
+    }
+    if(!payload || payload.__type !== 'bg_backup_v1' || !payload.state || typeof payload.state !== 'object'){
+      statusEl.textContent = '這個檔案的格式不是本系統的完整備份檔，請確認上傳的是「匯出完整備份」產生的 .json 檔。';
+      return;
+    }
+    const bs = payload.state;
+    if(!bs.monthsData || typeof bs.monthsData !== 'object'){
+      statusEl.textContent = '備份檔內容不完整（找不到月份資料），請確認檔案是否正確或重新匯出一份備份。';
+      return;
+    }
+    backupParsed = payload;
+    const monthKeys = Object.keys(bs.monthsData);
+    let totalDays = 0;
+    monthKeys.forEach(k=> totalDays += Object.keys(bs.monthsData[k].cells || {}).length);
+    const dt = new Date(payload.exportedAt).toLocaleString('zh-TW');
+    statusEl.innerHTML = `已讀取備份檔，匯出時間：${escapeHtml(dt)}（操作人：${escapeHtml(payload.exportedBy||'未指定')}）。` +
+      `<br>包含月份：${monthKeys.map(monthKeyLabel).map(escapeHtml).join('、') || '（無）'}，共 ${totalDays} 天資料。` +
+      `<br>人員名冊：${Array.isArray(bs.employees) ? bs.employees.length : 0} 人。`;
+    doBtn.disabled = false;
+    updateBackupOverwriteWarning();
+  }catch(err){
+    console.error(err);
+    statusEl.textContent = '讀取失敗：' + (err && err.message ? err.message : err) + '（可截圖此訊息回報，會比較好排查原因）';
+  }
+}
+document.getElementById('backupFileInput').addEventListener('change', handleBackupFileChange);
+
+function runBackupImport(){
+  if(!backupParsed) return;
+  const user = requireUser();
+  if(!user) return;
+  const bs = backupParsed.state;
+
+  // 逐月份把備份裡的 cells/notes 整月覆蓋進去（不是逐格比對時間新舊）——因為這是使用者
+  // 明確選擇的「還原到備份當時樣子」動作，本來就是要讓備份內容蓋掉現有值。
+  // 所有還原進來的格子一律蓋上「現在」的時間戳，這樣即使之後跟其他裝置合併存檔，
+  // 也不會因為現有資料的時間戳比較新，反而讓還原被合併邏輯悄悄擋掉、還原了等於沒還原。
+  if(!state.monthsData) state.monthsData = {};
+  let restoredDays = 0;
+  Object.keys(bs.monthsData).forEach(key=>{
+    const src = bs.monthsData[key] || {cells:{}, notes:{}};
+    const dst = state.monthsData[key] || {cells:{}, notes:{}};
+    const newCells = Object.assign({}, dst.cells);
+    Object.keys(src.cells || {}).forEach(day=>{
+      const dayData = {};
+      Object.keys(src.cells[day]).forEach(empId=>{
+        dayData[empId] = Object.assign({}, src.cells[day][empId], {ts: Date.now()});
+      });
+      newCells[day] = dayData;
+      restoredDays++;
+    });
+    const newNotes = Object.assign({}, dst.notes, src.notes || {});
+    state.monthsData[key] = { cells: newCells, notes: newNotes };
+  });
+
+  const restoreRoster = document.getElementById('backupRestoreRosterCheck').checked;
+  if(restoreRoster){
+    if(Array.isArray(bs.employees)) state.employees = bs.employees.map(e=> Object.assign({}, e));
+    if(typeof bs.dailyRequired === 'number') state.dailyRequired = bs.dailyRequired;
+    if(typeof bs.vStart === 'number') state.vStart = bs.vStart;
+    document.getElementById('vStartInput').value = state.vStart;
+  }
+
+  const switchView = document.getElementById('backupSwitchViewCheck').checked;
+  if(switchView && bs.rocYear && bs.month){ state.rocYear = bs.rocYear; state.month = bs.month; }
+
+  const dt = new Date(backupParsed.exportedAt).toLocaleString('zh-TW');
+  addLog(`【還原】自完整備份還原資料（備份匯出時間：${dt}），共還原 ${restoredDays} 天${restoreRoster ? '，並還原人員名冊/設定' : ''}`);
+  render();
+  scheduleSave();
+  closeBackupImportModal();
+  showToast(`✅ 還原完成，共還原 ${restoredDays} 天資料${switchView ? '，畫面已切換顯示' : ''}`);
+}
+document.getElementById('doBackupImportBtn').addEventListener('click', runBackupImport);
 
 /* ---------------- 主管權限 ---------------- */
 const ADMIN_PASSWORD = '7824316';
