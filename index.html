@@ -478,12 +478,12 @@
     <div class="modalsub">匯出的內容跟畫面上目前的資料完全一致（不是貼Excel用的簡化格式），可挑選要匯出全部月份，或只匯出指定的某個年月。</div>
 
     <label>匯出範圍</label>
-    <div style="display:flex; gap:16px; margin-top:8px; margin-bottom:10px; font-size:13px;">
-      <label style="display:flex; align-items:center; gap:6px; cursor:pointer; font-weight:400;">
+    <div style="display:flex; flex-wrap:wrap; gap:16px; margin-top:8px; margin-bottom:10px; font-size:13px;">
+      <label style="display:flex; flex-shrink:0; align-items:center; gap:6px; cursor:pointer; font-weight:400; white-space:nowrap;">
         <input type="radio" name="backupExportScope" value="all" checked>
         全部月份
       </label>
-      <label style="display:flex; align-items:center; gap:6px; cursor:pointer; font-weight:400;">
+      <label style="display:flex; flex-shrink:0; align-items:center; gap:6px; cursor:pointer; font-weight:400; white-space:nowrap;">
         <input type="radio" name="backupExportScope" value="one">
         只匯出指定年月
       </label>
@@ -520,12 +520,12 @@
 
     <div id="backupImportScopeBlock" style="display:none;">
       <label style="margin-top:12px;">還原範圍</label>
-      <div style="display:flex; gap:16px; margin-top:8px; margin-bottom:6px; font-size:13px;">
-        <label style="display:flex; align-items:center; gap:6px; cursor:pointer; font-weight:400;">
+      <div style="display:flex; flex-wrap:wrap; gap:16px; margin-top:8px; margin-bottom:6px; font-size:13px;">
+        <label style="display:flex; flex-shrink:0; align-items:center; gap:6px; cursor:pointer; font-weight:400; white-space:nowrap;">
           <input type="radio" name="backupImportScope" value="all" checked>
           備份裡的全部月份
         </label>
-        <label style="display:flex; align-items:center; gap:6px; cursor:pointer; font-weight:400;">
+        <label style="display:flex; flex-shrink:0; align-items:center; gap:6px; cursor:pointer; font-weight:400; white-space:nowrap;">
           <input type="radio" name="backupImportScope" value="one">
           只還原指定月份
         </label>
