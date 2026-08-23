@@ -334,9 +334,9 @@
     <div class="modalsub" id="noteSub"></div>
     <label>備註內容</label>
     <input type="text" id="noteTextInput" placeholder="備註 (如：四湖、東勢、組訓)">
-    <label style="display:flex; align-items:center; gap:8px; margin-top:16px; cursor:pointer;">
-      <input type="checkbox" id="noteMinus1Input" style="width:auto; margin:0;">
-      <span style="color:var(--ink);">此備註需從當日可上班人力中 -1（例如支援外勤/其他單位）</span>
+    <label style="display:block; margin-top:16px; cursor:pointer;">
+      <input type="checkbox" id="noteMinus1Input" style="width:auto; margin:0; vertical-align:middle;">
+      <span style="color:var(--ink); vertical-align:middle; margin-left:6px;">此備註需從當日可上班人力中 -1（例如支援外勤/其他單位）</span>
     </label>
     <div class="hint">勾選後，此欄僅顯示備註內容本身，但會自動影響當日剩餘可請假名額的計算。</div>
     <div class="modal-actions">
@@ -458,9 +458,9 @@
     <div class="hint">預設會自動從檔案標題判斷年月，若判斷錯誤或想匯入到別的年月，可自行修改上面的年/月。已存在的天數資料會被匯入內容覆蓋，其餘天數不受影響。</div>
     <div id="importOverwriteWarning" style="display:none; margin-top:10px; padding:10px 12px; border-radius:8px; background:#FCEFD8; color:#8A5A15; font-size:12.5px; line-height:1.6; font-weight:700;"></div>
 
-    <label style="margin-top:14px; display:flex; align-items:center; gap:8px; font-weight:400; font-size:13px; cursor:pointer;">
-      <input type="checkbox" id="importSwitchViewCheck" checked style="width:16px; height:16px;">
-      匯入完成後，切換畫面顯示到這個年月
+    <label style="margin-top:14px; display:block; font-weight:400; font-size:13px; cursor:pointer;">
+      <input type="checkbox" id="importSwitchViewCheck" checked style="width:16px; height:16px; vertical-align:middle;">
+      <span style="vertical-align:middle; margin-left:6px;">匯入完成後，切換畫面顯示到這個年月</span>
     </label>
 
     <div class="modal-actions">
@@ -475,20 +475,9 @@
   <div class="modal" style="max-width:480px;">
     <button class="closebtn" onclick="closeBackupExportModal()">×</button>
     <h2>匯出完整備份</h2>
-    <div class="modalsub">匯出的內容跟畫面上目前的資料完全一致（不是貼Excel用的簡化格式），可挑選要匯出全部月份，或只匯出指定的某個年月。</div>
+    <div class="modalsub">匯出的內容跟畫面上目前的資料完全一致（不是貼Excel用的簡化格式）。每次只匯出單一年月——因為人員名冊是全系統共用同一份、沒有按月份分開存，如果一次包進太多月份的資料，之後要還原到很久以前的月份時，人員名冊會對不起來。</div>
 
-    <label>匯出範圍</label>
-    <div style="display:flex; flex-wrap:wrap; gap:16px; margin-top:8px; margin-bottom:10px; font-size:13px;">
-      <label style="display:flex; flex-shrink:0; align-items:center; gap:6px; cursor:pointer; font-weight:400; white-space:nowrap;">
-        <input type="radio" name="backupExportScope" value="all" checked>
-        全部月份
-      </label>
-      <label style="display:flex; flex-shrink:0; align-items:center; gap:6px; cursor:pointer; font-weight:400; white-space:nowrap;">
-        <input type="radio" name="backupExportScope" value="one">
-        只匯出指定年月
-      </label>
-    </div>
-    <div id="backupExportMonthPicker" style="display:none; gap:14px; margin-bottom:10px;">
+    <div style="display:flex; gap:14px; margin-top:14px; margin-bottom:10px;">
       <div style="flex:1;">
         <label>民國年</label>
         <input type="number" id="backupExportYear" value="115">
@@ -513,41 +502,26 @@
   <div class="modal" style="max-width:520px;">
     <button class="closebtn" onclick="closeBackupImportModal()">×</button>
     <h2>匯入還原備份</h2>
-    <div class="modalsub">請上傳先前用「匯出完整備份」產生的 .json 檔，讀取後可挑選要還原全部月份，或只還原其中指定的某個年月。</div>
+    <div class="modalsub">請上傳先前用「匯出完整備份」產生的 .json 檔，會直接還原成備份檔裡那個年月當時的樣子。</div>
 
     <input type="file" id="backupFileInput" accept=".json">
     <div id="backupImportStatus" style="font-size:12.5px; color:#6b6558; margin-top:10px; line-height:1.6;">請選擇要匯入的備份檔</div>
 
-    <div id="backupImportScopeBlock" style="display:none;">
-      <label style="margin-top:12px;">還原範圍</label>
-      <div style="display:flex; flex-wrap:wrap; gap:16px; margin-top:8px; margin-bottom:6px; font-size:13px;">
-        <label style="display:flex; flex-shrink:0; align-items:center; gap:6px; cursor:pointer; font-weight:400; white-space:nowrap;">
-          <input type="radio" name="backupImportScope" value="all" checked>
-          備份裡的全部月份
-        </label>
-        <label style="display:flex; flex-shrink:0; align-items:center; gap:6px; cursor:pointer; font-weight:400; white-space:nowrap;">
-          <input type="radio" name="backupImportScope" value="one">
-          只還原指定月份
-        </label>
-      </div>
-      <select id="backupImportMonthSelect" style="display:none; margin-bottom:6px;"></select>
-    </div>
-
     <div id="backupOverwriteWarning" style="display:none; margin-top:10px; padding:10px 12px; border-radius:8px; background:#FCEFD8; color:#8A5A15; font-size:12.5px; line-height:1.6; font-weight:700;"></div>
 
-    <label style="margin-top:14px; display:flex; align-items:center; gap:8px; font-weight:400; font-size:13px; cursor:pointer;">
-      <input type="checkbox" id="backupRestoreRosterCheck" checked style="width:16px; height:16px;">
-      同時還原人員名冊／每日應上班人數／V起始值設定
+    <label style="margin-top:14px; display:block; font-weight:400; font-size:13px; cursor:pointer;">
+      <input type="checkbox" id="backupRestoreRosterCheck" checked style="width:16px; height:16px; vertical-align:middle;">
+      <span style="vertical-align:middle; margin-left:6px;">同時還原人員名冊／每日應上班人數／V起始值設定</span>
     </label>
-    <label style="margin-top:8px; display:flex; align-items:center; gap:8px; font-weight:400; font-size:13px; cursor:pointer;">
-      <input type="checkbox" id="backupSwitchViewCheck" checked style="width:16px; height:16px;">
-      還原完成後，切換畫面顯示到備份當時的年月
+    <label style="margin-top:8px; display:block; font-weight:400; font-size:13px; cursor:pointer;">
+      <input type="checkbox" id="backupSwitchViewCheck" checked style="width:16px; height:16px; vertical-align:middle;">
+      <span style="vertical-align:middle; margin-left:6px;">還原完成後，切換畫面顯示到備份當時的年月</span>
     </label>
 
     <div id="backupImportConfirmBlock" style="display:none; margin-top:14px; padding:12px; border-radius:8px; background:#FCEFD8;">
-      <label style="display:flex; align-items:flex-start; gap:8px; cursor:pointer; font-weight:700; font-size:13px; color:#8A5A15;">
-        <input type="checkbox" id="backupImportConfirmCheck" style="width:16px; height:16px; margin-top:2px;">
-        <span>我了解上面列出的天數會被備份內容覆蓋，且無法復原，確定要還原。</span>
+      <label style="display:block; cursor:pointer; font-weight:700; font-size:13px; color:#8A5A15;">
+        <input type="checkbox" id="backupImportConfirmCheck" style="width:16px; height:16px; vertical-align:top; margin-top:2px;">
+        <span style="margin-left:6px;">我了解上面列出的天數會被備份內容覆蓋，且無法復原，確定要還原。</span>
       </label>
     </div>
 
@@ -1141,10 +1115,8 @@ function exportBackupJson(monthKeys){
 
 function openBackupExportModal(){
   if(!requireUser()) return;
-  document.querySelector('input[name="backupExportScope"][value="all"]').checked = true;
   document.getElementById('backupExportYear').value = state.rocYear;
   document.getElementById('backupExportMonth').value = state.month;
-  document.getElementById('backupExportMonthPicker').style.display = 'none';
   updateBackupExportPreview();
   document.getElementById('backupExportOverlay').classList.add('show');
 }
@@ -1152,38 +1124,28 @@ function closeBackupExportModal(){ document.getElementById('backupExportOverlay'
 document.getElementById('exportBackupBtn').addEventListener('click', ()=>{ closeSettings(); openBackupExportModal(); });
 
 function currentBackupExportScopeKeys(){
-  const scope = document.querySelector('input[name="backupExportScope"]:checked').value;
-  if(scope === 'all') return null; // null 代表全部月份
   const y = parseInt(document.getElementById('backupExportYear').value, 10);
   const m = parseInt(document.getElementById('backupExportMonth').value, 10);
   if(!y || !m || m<1 || m>12) return [];
   return [monthKey(y, m)];
 }
 function updateBackupExportPreview(){
-  const scope = document.querySelector('input[name="backupExportScope"]:checked').value;
-  document.getElementById('backupExportMonthPicker').style.display = (scope==='one') ? 'flex' : 'none';
   const keys = currentBackupExportScopeKeys();
   const preview = document.getElementById('backupExportPreview');
-  if(keys === null){
-    const allKeys = Object.keys(state.monthsData || {});
-    let totalDays = 0;
-    allKeys.forEach(k=> totalDays += Object.keys((state.monthsData[k]||{}).cells || {}).length);
-    preview.innerHTML = `將匯出：<b>${allKeys.map(monthKeyLabel).join('、') || '（目前沒有任何月份資料）'}</b>，共 ${totalDays} 天資料，人員名冊 ${state.employees.length} 人。`;
-  } else if(keys.length === 0){
+  if(keys.length === 0){
     preview.innerHTML = '請輸入正確的民國年與月份。';
   } else {
     const key = keys[0];
     const md = state.monthsData && state.monthsData[key];
     const days = md ? Object.keys(md.cells||{}).length : 0;
-    preview.innerHTML = `將匯出：<b>${monthKeyLabel(key)}</b>，共 ${days} 天資料${days===0 ? '（這個月目前沒有任何資料）' : ''}。`;
+    preview.innerHTML = `將匯出：<b>${monthKeyLabel(key)}</b>，共 ${days} 天資料${days===0 ? '（這個月目前沒有任何資料）' : ''}，人員名冊 ${state.employees.length} 人。`;
   }
 }
-document.querySelectorAll('input[name="backupExportScope"]').forEach(r=> r.addEventListener('change', updateBackupExportPreview));
 document.getElementById('backupExportYear').addEventListener('input', updateBackupExportPreview);
 document.getElementById('backupExportMonth').addEventListener('input', updateBackupExportPreview);
 document.getElementById('doBackupExportBtn').addEventListener('click', ()=>{
   const keys = currentBackupExportScopeKeys();
-  if(keys && keys.length===0){ alert('請輸入正確的民國年與月份。'); return; }
+  if(keys.length===0){ alert('請輸入正確的民國年與月份。'); return; }
   exportBackupJson(keys);
   closeBackupExportModal();
 });
@@ -1472,9 +1434,6 @@ function openBackupImportModal(){
   backupParsed = null;
   document.getElementById('backupFileInput').value = '';
   document.getElementById('backupImportStatus').textContent = '請選擇要匯入的備份檔';
-  document.getElementById('backupImportScopeBlock').style.display = 'none';
-  document.getElementById('backupImportMonthSelect').style.display = 'none';
-  document.querySelector('input[name="backupImportScope"][value="all"]').checked = true;
   document.getElementById('backupOverwriteWarning').style.display = 'none';
   document.getElementById('backupRestoreRosterCheck').checked = true;
   document.getElementById('backupSwitchViewCheck').checked = true;
@@ -1491,14 +1450,10 @@ function monthKeyLabel(key){
   return m ? `民國${m[1]}年${m[2]}月` : key;
 }
 
-// 依目前選的「還原範圍」，算出實際會被還原的月份 key 清單
+// 還原範圍＝備份檔裡實際包含的月份（不再另外選擇，備份檔本身就是單一年月匯出的）
 function currentBackupImportScopeKeys(){
   if(!backupParsed) return [];
-  const allKeys = Object.keys(backupParsed.state.monthsData || {});
-  const scope = document.querySelector('input[name="backupImportScope"]:checked').value;
-  if(scope === 'all') return allKeys;
-  const sel = document.getElementById('backupImportMonthSelect').value;
-  return sel ? [sel] : [];
+  return Object.keys(backupParsed.state.monthsData || {});
 }
 
 function updateBackupImportSummary(){
@@ -1526,7 +1481,7 @@ function updateBackupImportSummary(){
 
   if(scopeKeys.length === 0){
     warnEl.style.display = 'block';
-    warnEl.textContent = '⚠️ 尚未選擇要還原的月份。';
+    warnEl.textContent = '⚠️ 這份備份檔裡沒有任何月份資料。';
     confirmBlock.style.display = 'none';
     doBtn.disabled = true;
     return;
@@ -1542,20 +1497,12 @@ function updateBackupImportSummary(){
   doBtn.disabled = !confirmCheck.checked;
 }
 
-document.querySelectorAll('input[name="backupImportScope"]').forEach(r=> r.addEventListener('change', ()=>{
-  const isOne = document.querySelector('input[name="backupImportScope"]:checked').value === 'one';
-  document.getElementById('backupImportMonthSelect').style.display = isOne ? 'block' : 'none';
-  updateBackupImportSummary();
-}));
-document.getElementById('backupImportMonthSelect').addEventListener('change', updateBackupImportSummary);
 document.getElementById('backupImportConfirmCheck').addEventListener('change', updateBackupImportSummary);
 
 async function handleBackupFileChange(e){
   const file = e.target.files[0];
   const statusEl = document.getElementById('backupImportStatus');
-  const scopeBlock = document.getElementById('backupImportScopeBlock');
   backupParsed = null;
-  scopeBlock.style.display = 'none';
   document.getElementById('backupImportConfirmBlock').style.display = 'none';
   document.getElementById('backupImportConfirmCheck').checked = false;
   document.getElementById('doBackupImportBtn').disabled = true;
@@ -1587,14 +1534,8 @@ async function handleBackupFileChange(e){
     monthKeys.forEach(k=> totalDays += Object.keys(bs.monthsData[k].cells || {}).length);
     const dt = new Date(payload.exportedAt).toLocaleString('zh-TW');
     statusEl.innerHTML = `已讀取備份檔，匯出時間：${escapeHtml(dt)}（操作人：${escapeHtml(payload.exportedBy||'未指定')}）。` +
-      `<br>備份裡包含月份：${monthKeys.map(monthKeyLabel).map(escapeHtml).join('、') || '（無）'}，共 ${totalDays} 天資料。` +
+      `<br>備份年月：${monthKeys.map(monthKeyLabel).map(escapeHtml).join('、') || '（無）'}，共 ${totalDays} 天資料。` +
       `<br>人員名冊：${Array.isArray(bs.employees) ? bs.employees.length : 0} 人。`;
-
-    const sel = document.getElementById('backupImportMonthSelect');
-    sel.innerHTML = monthKeys.map(k=> `<option value="${k}">${monthKeyLabel(k)}</option>`).join('');
-    scopeBlock.style.display = 'block';
-    document.querySelector('input[name="backupImportScope"][value="all"]').checked = true;
-    sel.style.display = 'none';
     updateBackupImportSummary();
   }catch(err){
     console.error(err);
